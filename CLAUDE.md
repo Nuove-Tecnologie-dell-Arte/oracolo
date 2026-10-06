@@ -64,7 +64,16 @@ cd frontend && npm run lint && npm run typecheck
 
 ## Test e verifica
 
-Non c'è una suite di test automatizzata. Per verificare un cambiamento:
+Il backend ha test (`pytest`, vedi `tests/`) solo per le funzioni pure di
+`backend/library.py` e `backend/themes.py` - niente Ollama o DB coinvolto.
+Si installano con `pip install -r requirements-dev.txt` e si lanciano con
+`python -m pytest` dalla radice. In particolare
+`tests/test_library.py::TestQuotableSentences` verifica l'invariante
+"le citazioni non vengono mai riscritte" (vedi sopra): se la tocchi,
+assicurati che quel test passi ancora.
+
+Per il resto, e per cio' che i test non coprono (Ollama, DB, server),
+verifica un cambiamento cosi':
 - `python -m backend.main seed` per popolare il DB locale senza bisogno di
   MySQL/Ollama, poi `python -m backend.main serve` e controllare a occhio
   `http://localhost:8000/`.
