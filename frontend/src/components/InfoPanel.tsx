@@ -17,16 +17,16 @@ export default function InfoPanel({
       <ul className="field-legend" aria-label="Come leggere la nebulosa">
         <li>
           <svg width="30" height="16" viewBox="0 0 30 16" aria-hidden="true">
-            <circle cx="8" cy="8" r="6" fill="currentColor" />
-            <circle cx="24" cy="8" r="2.5" fill="currentColor" />
+            <circle className="legend-warm" cx="8" cy="8" r="6" />
+            <circle className="legend-cool" cx="24" cy="8" r="2.5" />
           </svg>
           Più grande, più pensieri
         </li>
         <li>
           <svg width="30" height="16" viewBox="0 0 30 16" aria-hidden="true">
-            <line x1="5" y1="8" x2="25" y2="8" stroke="currentColor" strokeWidth="1" />
-            <circle cx="5" cy="8" r="3" fill="currentColor" />
-            <circle cx="25" cy="8" r="3" fill="currentColor" />
+            <line className="legend-thread" x1="5" y1="8" x2="25" y2="8" strokeWidth="1" />
+            <circle className="legend-cool" cx="5" cy="8" r="3" />
+            <circle className="legend-cool" cx="25" cy="8" r="3" />
           </svg>
           Un filo: pensieri in comune
         </li>
