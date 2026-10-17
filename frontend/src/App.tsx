@@ -98,10 +98,10 @@ const FOCUS_MIN_DISTANCE = 240;
 // Parte dell'altezza dello schermo utile per l'inquadratura: in alto c'e'
 // l'intestazione, in basso la barra delle domande.
 const FOCUS_VERTICAL_ROOM = 0.72;
-// Ingombro del pannello laterale (larghezza + margine, vedi .detail-dock in
+// Ingombro del pannello laterale (larghezza + margine, vedi .reply-dock in
 // index.css): la stella viene portata al centro dello spazio libero a
 // sinistra del pannello.
-const PANEL_SPACE = 410;
+const PANEL_SPACE = 436;
 const PANEL_MIN_VIEWPORT = 760;
 
 // Durata del volo delle stelle (e della camera) quando si richiama una figura.

@@ -152,11 +152,8 @@ button { color: inherit; }
 
 /* ── Detail modal ── */
 .detail-card { width: min(420px, calc(100vw - 32px)); }
-.detail-kind { display: flex; align-items: center; gap: 7px; font: 11px 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .08em; color: #b3865f; margin-bottom: 14px; }
-.detail-title { font-size: 24px; line-height: 1.15; letter-spacing: -.03em; font-weight: 500; color: #e7dfd3; margin: 0 0 6px; }
 /* Quando la stella risponde a una domanda, il titolo e' la domanda e il tag
    resta come piccola etichetta sopra. */
-.detail-title.is-question { font: italic 500 21px/1.3 var(--font-voice); letter-spacing: 0; color: #f0e3cf; margin-bottom: 12px; }
 
 /* Domande delle stelle vicine: seguono la loro stella sullo schermo. */
 @keyframes questionAppear { from { opacity: 0; } to { opacity: 1; } }
@@ -164,19 +161,6 @@ button { color: inherit; }
 .detail-description { color: #b0a89f; font-size: 13px; line-height: 1.7; margin: 0 0 18px; }
 .detail-link { display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px; border: 1px solid rgba(217,174,125,.4); border-radius: 3px; color: #d5a570; font-size: 11px; text-decoration: none; text-transform: uppercase; letter-spacing: .08em; transition: background .2s, color .2s; }
 .detail-link:hover { background: rgba(217,174,125,.08); color: #e1b47f; }
-.detail-meta { display: flex; gap: 30px; margin: 22px 0 0; padding-top: 18px; border-top: 1px solid rgba(236,226,211,.12); }
-.detail-meta div { display: flex; flex-direction: column; gap: 3px; }
-.detail-meta span { font: 11px 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .08em; color: #746f6b; }
-.detail-meta strong { color: #c8c1b8; font-size: 13px; font-weight: 500; }
-.detail-entries { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
-.detail-entry { color: #b0a89f; font-size: 13px; line-height: 1.65; margin: 0; padding: 10px 12px; border-left: 2px solid rgba(217,174,125,.4); background: rgba(255,255,255,.02); }
-.detail-connections { margin-top: 22px; padding-top: 18px; border-top: 1px solid rgba(236,226,211,.12); }
-.detail-conn-heading { font: 11px 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .08em; color: #746f6b; margin: 0 0 12px; }
-.detail-conn-list { display: flex; flex-direction: column; gap: 2px; }
-.detail-conn-item { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: transparent; color: #a89e92; font-size: 12px; padding: 8px 0; text-align: left; cursor: pointer; transition: color .2s, padding .2s; }
-.detail-conn-item:hover { color: #e1b47f; padding-left: 4px; }
-.detail-conn-dot { width: 5px; height: 5px; border-radius: 50%; background: #d9a66d; box-shadow: 0 0 6px #d9a66d; flex-shrink: 0; }
-.detail-conn-item svg { margin-left: auto; color: #6e6762; }
 
 /* ── History drawer ── */
 .history-drawer { position: absolute; left: 0; top: 0; bottom: 0; width: min(380px, calc(100vw - 32px)); background: rgba(12,14,17,.97); border-right: 1px solid rgba(217,174,125,.2); box-shadow: 25px 0 70px rgba(0,0,0,.5); display: flex; flex-direction: column; animation: slideRight .28s ease; }
@@ -229,60 +213,18 @@ button { color: inherit; }
 /* ── Pannello di dettaglio agganciato a destra (non modale) ──
    Nessuno sfondo scuro e nessun blocco dei click: la nebulosa dietro
    resta navigabile mentre la scheda e' aperta. */
-.detail-dock { position: absolute; z-index: 3; top: 116px; right: 28px; bottom: 124px; width: 380px; display: flex; flex-direction: column; animation: dockIn .35s ease;
-  /* Vetro: sfondo semitrasparente e sfocato, la nebulosa si intravede dietro.
-     Un velo piu' chiaro in alto e un bordo luminoso danno lo spessore. */
-  background: linear-gradient(160deg, rgba(255,255,255,.09), rgba(255,255,255,.02) 38%), rgba(16,18,22,.34);
-  border: 1px solid rgba(255,255,255,.16); border-radius: 14px;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 24px 70px rgba(0,0,0,.42);
-  -webkit-backdrop-filter: blur(22px) saturate(150%); backdrop-filter: blur(22px) saturate(150%); }
 /* Ritirata: la scheda esce dallo schermo a destra e resta solo la linguetta. */
-.detail-dock { transition: transform .5s cubic-bezier(.2, .7, .2, 1), box-shadow .5s; }
-@media (prefers-reduced-motion: reduce) { .detail-dock { transition: none; } }
-.detail-dock-scroll { flex: 1; overflow-y: auto; padding: 26px 24px 22px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.22) transparent; }
-.detail-dock .detail-title { padding-right: 36px; }
 /* Sul vetro il testo deve staccare di piu' che sullo sfondo pieno. */
-.detail-dock .detail-meta, .detail-dock .detail-connections { border-top-color: rgba(255,255,255,.14); }
-.detail-dock .detail-meta span, .detail-dock .detail-conn-heading { color: #a39b93; }
-.detail-dock .detail-meta strong { color: #e7dfd3; }
-.detail-dock .detail-entry { color: #d6cec4; background: rgba(255,255,255,.055); border-radius: 0 6px 6px 0; }
-.detail-dock .modal-close { border-color: rgba(255,255,255,.22); color: #b9b1a8; background: rgba(255,255,255,.05); }
 
 /* Cronologia delle domande della visita, nello stesso azzurro delle stelle
    visitate: una riga per domanda, unite da un filo come le tappe di un
    cammino. Se sono tante, l'elenco scorre. */
-.detail-trail { margin: 0 36px 20px 0; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,.14); }
-.detail-trail-heading { font: 11px 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .08em; color: #a39b93; margin: 0 0 9px; }
-.detail-history ol { list-style: none; margin: 0; padding: 0 0 0 12px; max-height: 9.6em; overflow-y: auto; border-left: 1px solid rgba(95,224,255,.3); }
-.detail-history li { position: relative; }
-.detail-history li::before { content: ''; position: absolute; left: -15px; top: .62em; width: 5px; height: 5px; border-radius: 50%; background: rgba(95,224,255,.7); }
-.detail-history-step { display: block; width: 100%; padding: 3px 0; border: 0; background: none; text-align: left; font: italic 12px/1.4 var(--font-voice); color: #8fdcf2; cursor: pointer; transition: color .2s; }
-button.detail-history-step:hover, button.detail-history-step:focus-visible { color: #fff; outline: none; }
-.detail-history-step.is-current { color: #fff; cursor: default; }
 
 /* Citazioni dai testi letti dall'Oracolo: sempre con autore e titolo. */
-.detail-source { display: block; margin-top: 5px; font: normal 11px/1.4 'DM Mono', monospace; letter-spacing: .04em; color: #b3865f; }
-.detail-source::before { content: '\2014\00a0'; }
-.detail-source em { font-style: italic; }
-.detail-dock .detail-entry.is-quote { border-left-color: rgba(255,213,138,.85); font-style: italic; }
-.detail-bond .detail-source { padding-left: 13px; margin-top: 0; }
 
 /* L'Oracolo nella scheda: la risposta (la domanda e' il titolo della scheda). */
-.detail-oracle { margin-top: 20px; padding: 16px 16px 14px; border: 1px solid rgba(255,213,138,.3); border-radius: 10px; background: linear-gradient(150deg, rgba(255,213,138,.1), rgba(255,213,138,.02) 60%); }
-.detail-oracle-heading { display: flex; align-items: center; gap: 6px; font: 11px 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .14em; color: #e1b47f; margin: 0 0 12px; }
-.detail-oracle-label { font: 11px 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .08em; color: #a39b93; margin: 0 0 5px; }
-.detail-oracle-answer { font: italic 500 19px/1.4 var(--font-voice); color: #ffd58a; margin: 0; }
 /* Le parole compaiono una alla volta (vedi OracleText). */
-.detail-oracle-answer span { opacity: 0; transition: opacity .7s ease; }
-.detail-oracle-answer span.is-said { opacity: 1; }
-.detail-oracle-waiting { font: italic 500 14px/1.5 var(--font-voice); color: #a39b93; margin: 0; animation: oracleBreath 1.8s ease-in-out infinite; }
-.detail-oracle-sources { margin-top: 14px; }
-.detail-oracle-sources p:not(.detail-oracle-label) { color: #b9b1a8; font-size: 12px; line-height: 1.5; font-style: italic; margin: 0 0 4px; padding-left: 10px; border-left: 1px solid rgba(255,213,138,.3); }
-.detail-oracle-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-.detail-oracle-actions button { font: 11px 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .08em; padding: 8px 12px; border-radius: 999px; border: 1px solid rgba(255,213,138,.45); background: transparent; color: #f0d9b0; cursor: pointer; transition: background .2s, color .2s, opacity .2s; }
-.detail-oracle-actions button:hover:not(:disabled) { background: rgba(255,213,138,.16); color: #fff; }
 /* La figura del viaggio e' completa: invito a guardarla. */
-.detail-oracle-actions .detail-figure-ready { width: 100%; border-color: rgba(255,226,168,.85); background: rgba(255,213,138,.14); color: #fff1d6; animation: oracleBreath 2.4s ease-in-out infinite; }
 
 /* Figura del viaggio: linee della costellazione sopra la nebulosa. */
 .figure-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
@@ -297,8 +239,7 @@ button.detail-history-step:hover, button.detail-history-step:focus-visible { col
 .figure-reveal button:hover, .figure-reveal button:focus-visible { background: rgba(255,213,138,.16); color: #fff; outline: none; }
 @keyframes figureAppear { 0%, 40% { opacity: 0; transform: translate(-50%, 8px); } 100% { opacity: 1; transform: translate(-50%, 0); } }
 @media (max-width: 760px) { .figure-reveal { bottom: 96px; } }
-@media (prefers-reduced-motion: reduce) { .figure-reveal, .detail-oracle-actions .detail-figure-ready { animation: none; } }
-.detail-oracle-actions button:disabled { opacity: .45; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .figure-reveal, .reply-figure { animation: none; } }
 @keyframes oracleBreath { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
 
 /* Domande suggerite, sopra la barra: un click e l'Oracolo risponde. */
@@ -316,17 +257,63 @@ button.detail-history-step:hover, button.detail-history-step:focus-visible { col
 .search-ask .search-result-label { color: #f0d9b0; font-style: italic; }
 
 /* Tag collegati, ognuno con la frase che lo unisce al tag aperto. */
-.detail-bond-list { display: flex; flex-direction: column; gap: 8px; }
-.detail-bond { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 11px 12px; text-align: left; border: 1px solid rgba(255,255,255,.1); border-radius: 8px; background: rgba(255,255,255,.04); color: inherit; cursor: pointer; transition: background .2s, border-color .2s; }
-.detail-bond:hover { background: rgba(255,213,138,.1); border-color: rgba(255,213,138,.45); }
-.detail-bond-name { display: flex; align-items: center; gap: 8px; color: #f0d9b0; font-size: 13px; }
-.detail-bond-name svg { margin-left: auto; color: #a39b93; }
-.detail-bond-quote { color: #c9c1b7; font-size: 12px; line-height: 1.55; font-style: italic; padding-left: 13px; }
-.detail-bond-quote::before { content: '\201C'; }
-.detail-bond-quote::after { content: '\201D'; }
-.detail-bond-more { font: 11px 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .08em; color: #8f877f; padding-left: 13px; }
 @keyframes dockIn { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
 
-@media (max-width: 760px) {
-  .detail-dock { top: auto; left: 12px; right: 12px; bottom: 124px; width: auto; height: 40vh; }
-}
+
+/* ── Scheda della risposta ──
+   Si legge dall'alto: la domanda (o il tag), la risposta dell'Oracolo che e'
+   la voce principale, poi cio' che ha ascoltato, i frammenti e le stelle
+   vicine. Sezioni separate da fili, niente riquadri dentro altri riquadri.
+   Non ha sfondo scuro a tutto schermo ne' blocca i click: la nebulosa resta
+   navigabile. */
+.reply-dock { position: absolute; z-index: 3; top: 104px; right: 28px; bottom: 124px; width: 408px; display: flex; flex-direction: column; background: rgba(11,13,16,.93); border: 1px solid rgba(236,226,211,.14); border-radius: 6px; box-shadow: 0 24px 60px -24px rgba(0,0,0,.7); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); animation: dockIn .35s ease; }
+.reply-close { position: absolute; top: 14px; right: 14px; z-index: 1; width: 30px; height: 30px; display: grid; place-items: center; color: #a39b93; background: transparent; border: 0; border-radius: 4px; cursor: pointer; transition: color .2s, background .2s; }
+.reply-close:hover { color: #e1b47f; background: rgba(217,174,125,.1); }
+.reply-close:focus-visible, .reply-actions button:focus-visible, .reply-figure:focus-visible, .reply-bond:focus-visible, .reply-step:focus-visible { outline: 1px solid #d7a66e; outline-offset: 3px; }
+.reply-scroll { flex: 1; overflow-y: auto; padding: 30px 30px 26px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.22) transparent; }
+
+.reply-trail { margin: 0 40px 24px 0; }
+.reply-trail ol { list-style: none; margin: 0; padding: 0 0 0 14px; max-height: 8.4em; overflow-y: auto; border-left: 1px solid rgba(95,224,255,.3); scrollbar-width: thin; }
+.reply-trail li { position: relative; }
+.reply-trail li::before { content: ''; position: absolute; left: -17px; top: .7em; width: 5px; height: 5px; border-radius: 50%; background: rgba(95,224,255,.7); }
+.reply-step { display: block; width: 100%; padding: 3px 0; border: 0; background: none; text-align: left; font: italic 500 14px/1.4 var(--font-voice); color: #8fdcf2; cursor: pointer; transition: color .2s; }
+button.reply-step:hover { color: #fff; }
+.reply-step.is-current { color: #fff; cursor: default; }
+
+.reply-title { margin: 0; padding-right: 40px; font-size: 24px; line-height: 1.15; letter-spacing: -.02em; font-weight: 500; color: #eee8df; text-wrap: balance; }
+.reply-title.is-question { font: italic 500 21px/1.3 var(--font-voice); letter-spacing: 0; color: #d6cec4; }
+.reply-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 10px 0 0; font-size: 12px; color: #8f8983; font-variant-numeric: tabular-nums; }
+.reply-meta strong { color: #e1b47f; font-weight: 600; }
+
+.reply-answer { margin: 28px 0 0; font: italic 500 26px/1.32 var(--font-voice); color: #ffd58a; text-wrap: pretty; }
+.reply-answer span { opacity: 0; transition: opacity .7s ease; }
+.reply-answer span.is-said { opacity: 1; }
+.reply-waiting { margin: 28px 0 0; font: italic 500 18px/1.4 var(--font-voice); color: #a39b93; animation: oracleBreath 1.8s ease-in-out infinite; }
+.reply-actions { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-top: 22px; }
+.reply-actions button { padding: 6px 0; font: 600 12px/1 'Manrope', sans-serif; letter-spacing: .02em; color: #f0d9b0; background: none; border: 0; border-bottom: 1px solid rgba(217,174,125,.45); cursor: pointer; transition: color .2s, border-color .2s; }
+.reply-actions button:hover:not(:disabled) { color: #fff; border-bottom-color: #e1b47f; }
+.reply-actions button:disabled { opacity: .45; cursor: default; }
+.reply-figure { display: block; width: 100%; margin-top: 20px; padding: 11px 14px; font: 600 12px/1.3 'Manrope', sans-serif; color: #fff1d6; background: rgba(255,213,138,.12); border: 1px solid rgba(255,226,168,.7); border-radius: 4px; cursor: pointer; animation: oracleBreath 2.4s ease-in-out infinite; }
+
+.reply-section { margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(236,226,211,.12); }
+.reply-label { margin: 0 0 14px; font: 600 11px/1 'Manrope', sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #8f8983; }
+.reply-heard { margin: 0 0 12px; font: italic 500 15px/1.5 var(--font-voice); color: #b9b1a8; }
+.reply-fragment { margin: 0 0 18px; font-size: 13px; line-height: 1.65; color: #d6cec4; }
+.reply-fragment.is-quote { font: italic 500 16px/1.55 var(--font-voice); color: #e8dccb; }
+.reply-source { display: block; margin-top: 5px; font: normal 12px/1.4 'Manrope', sans-serif; letter-spacing: 0; color: #b3865f; }
+.reply-source::before { content: '\2014\00a0'; }
+.reply-source em { font-style: italic; }
+
+.reply-bonds { list-style: none; margin: 0; padding: 0; }
+.reply-bonds li + li { border-top: 1px solid rgba(236,226,211,.1); }
+.reply-bond { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 13px 0; text-align: left; color: inherit; background: none; border: 0; cursor: pointer; }
+.reply-bond-name { display: flex; align-items: center; justify-content: space-between; font: 600 14px/1.2 'Manrope', sans-serif; color: #f0d9b0; transition: color .2s; }
+.reply-bond-name svg { color: #8f8983; transition: color .2s, transform .25s cubic-bezier(.16,1,.3,1); }
+.reply-bond:hover .reply-bond-name { color: #fff; }
+.reply-bond:hover .reply-bond-name svg { color: #e1b47f; transform: translate(2px, -2px); }
+.reply-bond-quote { font: italic 500 14px/1.5 var(--font-voice); color: #b9b1a8; }
+.reply-bond-quote::before { content: '\201C'; }
+.reply-bond-quote::after { content: '\201D'; }
+.reply-bond-more { font-size: 12px; color: #8f877f; }
+@media (max-width: 760px) { .reply-dock { top: auto; left: 12px; right: 12px; bottom: 124px; width: auto; height: 40vh; } .reply-scroll { padding: 22px 20px 20px; } .reply-answer { font-size: 22px; } }
+@media (prefers-reduced-motion: reduce) { .reply-dock, .reply-figure { animation: none; } }

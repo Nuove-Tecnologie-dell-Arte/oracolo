@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUpRight, Hash, Sparkles, X } from 'lucide-react';
+import { ArrowUpRight, X } from 'lucide-react';
 import type { OracleReading, OracleThought, TagDetail, TextSource } from '@/lib/api';
 
 // Una domanda della cronologia, con la stella che le ha risposto.
@@ -25,7 +25,7 @@ export type OracleState = {
 // Da dove viene una citazione: autore e titolo del testo.
 function Attribution({ source }: { source?: TextSource | null }) {
   if (!source) return null;
-  return <cite className="detail-source">{source.author}, <em>{source.title}</em></cite>;
+  return <cite className="reply-source">{source.author}, <em>{source.title}</em></cite>;
 }
 
 // Il testo dell'Oracolo compare una parola alla volta, come se lo stesse
@@ -42,7 +42,7 @@ function OracleText({ text }: { text: string }) {
   }, [said, words.length]);
 
   return (
-    <p className="detail-oracle-answer" aria-label={text}>
+    <p className="reply-answer" aria-label={text}>
       {words.map((word, i) => (
         // le parole non cambiano posizione: la chiave puo' essere l'indice
         <span key={i} className={i < said ? 'is-said' : undefined} aria-hidden="true">{word} </span>
@@ -70,16 +70,15 @@ function QuestionHistory({
   }, [history.length]);
 
   return (
-    <nav className="detail-trail detail-history" aria-label="Le tue domande">
-      <p className="detail-trail-heading">Le tue domande</p>
+    <nav className="reply-trail" aria-label="Le tue domande">
       <ol ref={list}>
         {history.map((step, i) => (
           // la stessa domanda puo' tornare piu' volte: la chiave include la posizione
           <li key={`${i}-${step.question}`}>
             {i === current ? (
-              <span className="detail-history-step is-current" aria-current="step">{step.question}</span>
+              <span className="reply-step is-current" aria-current="step">{step.question}</span>
             ) : (
-              <button className="detail-history-step" onClick={() => onStep?.(i)} {...hover(step.tag)}>
+              <button className="reply-step" onClick={() => onStep?.(i)} {...hover(step.tag)}>
                 {step.question}
               </button>
             )}
@@ -154,58 +153,58 @@ export default function TagDetailPanel({
   });
 
   return (
-    <aside className="detail-dock" aria-label={`Tag ${tag.name}`}>
-      <button className="modal-close" onClick={onClose} aria-label="Chiudi"><X size={18} /></button>
-      <div className="detail-dock-scroll" key={tag.name}>
+    <aside className="reply-dock" aria-label={`Tag ${tag.name}`}>
+      <button className="reply-close" onClick={onClose} aria-label="Chiudi"><X size={18} /></button>
+      <div className="reply-scroll" key={tag.name}>
         {history.length > 1 && (
           <QuestionHistory history={history} current={current} onStep={onHistoryStep} hover={hover} />
         )}
 
-        <div className="detail-kind"><Hash size={15} /> {asked ? tag.name : 'Tag'}</div>
-        <h2 className={`detail-title${asked ? ' is-question' : ''}`}>{asked ?? tag.name}</h2>
-        <div className="detail-meta">
-          <div><span>Frammenti</span><strong>{tag.count}</strong></div>
-          <div><span>Stelle collegate</span><strong>{linkedCount ?? tag.related.length}</strong></div>
-        </div>
+        <h2 className={`reply-title${asked ? ' is-question' : ''}`}>{asked ?? tag.name}</h2>
+        <p className="reply-meta">
+          {asked && <strong>{tag.name}</strong>}
+          <span>{tag.count} frammenti</span>
+          <span>{linkedCount ?? tag.related.length} stelle collegate</span>
+        </p>
 
         {voice && (
-          <section className="detail-oracle" aria-label="L'Oracolo">
-            <p className="detail-oracle-heading"><Sparkles size={12} /> L'Oracolo</p>
+          <section className="reply-voice" aria-label="L'Oracolo">
             {voice.text && !arriving ? (
               <OracleText key={voice.text} text={voice.text} />
             ) : (
-              <p className="detail-oracle-waiting">la stella sta per parlare…</p>
+              <p className="reply-waiting">la stella sta per parlare…</p>
             )}
+            {figureReady && (
+              <button className="reply-figure" onClick={onRevealFigure}>la nebulosa ha preso forma: guardala</button>
+            )}
+            <div className="reply-actions">
+              <button onClick={onAskAnother}>fai un'altra domanda</button>
+              <button onClick={onWander}>viaggia nella nebulosa</button>
+            </div>
             {voice.text && !arriving && voice.entries.length > 0 && (
-              <div className="detail-oracle-sources">
-                <p className="detail-oracle-label">Pensieri che ha ascoltato</p>
+              <div className="reply-section">
+                <h3 className="reply-label">Pensieri che ha ascoltato</h3>
                 {voice.entries.map((entry) => (
-                  <p key={entry.id}>{entry.text}<Attribution source={entry.source} /></p>
+                  <p className="reply-heard" key={entry.id}>{entry.text}<Attribution source={entry.source} /></p>
                 ))}
               </div>
             )}
             {voice.text && !arriving && voice.readings.length > 0 && (
-              <div className="detail-oracle-sources">
-                <p className="detail-oracle-label">Dai testi che ha letto</p>
+              <div className="reply-section">
+                <h3 className="reply-label">Dai testi che ha letto</h3>
                 {voice.readings.map((reading) => (
-                  <p key={`${reading.title}-${reading.text}`}>{reading.text}<Attribution source={reading} /></p>
+                  <p className="reply-heard" key={`${reading.title}-${reading.text}`}>{reading.text}<Attribution source={reading} /></p>
                 ))}
               </div>
             )}
-            <div className="detail-oracle-actions">
-              {figureReady && (
-                <button className="detail-figure-ready" onClick={onRevealFigure}>la nebulosa ha preso forma: guardala</button>
-              )}
-              <button onClick={onAskAnother}>fai un'altra domanda</button>
-              <button onClick={onWander}>viaggia nella nebulosa</button>
-            </div>
           </section>
         )}
 
         {tag.entries.length > 0 && (
-          <div className="detail-entries">
+          <div className="reply-section">
+            <h3 className="reply-label">Frammenti</h3>
             {tag.entries.map((entry) => (
-              <p className={`detail-entry${entry.source ? ' is-quote' : ''}`} key={entry.id}>
+              <p className={`reply-fragment${entry.source ? ' is-quote' : ''}`} key={entry.id}>
                 {entry.text}
                 <Attribution source={entry.source} />
               </p>
@@ -214,31 +213,29 @@ export default function TagDetailPanel({
         )}
 
         {tag.related.length > 0 && (
-          <div className="detail-connections">
-            <p className="detail-conn-heading">Tag collegati</p>
-            <div className="detail-bond-list">
+          <div className="reply-section">
+            <h3 className="reply-label">Stelle vicine</h3>
+            <ul className="reply-bonds">
               {tag.related.map((rel) => {
                 // La frase che contiene entrambi i tag: perche' sono collegati.
                 const shared = rel.entries?.[0];
                 const others = rel.weight - 1;
                 return (
-                  <button key={rel.name} className="detail-bond" onClick={() => onSelectTag(rel.name)} {...hover(rel.name)}>
-                    <span className="detail-bond-name">
-                      <span className="detail-conn-dot" />
-                      {rel.name}
-                      <ArrowUpRight size={12} />
-                    </span>
-                    {shared && <span className="detail-bond-quote">{shared.text}</span>}
-                    {shared?.source && <Attribution source={shared.source} />}
-                    {shared && others > 0 && (
-                      <span className="detail-bond-more">
-                        {others === 1 ? 'e un\'altra frase in comune' : `e altre ${others} frasi in comune`}
-                      </span>
-                    )}
-                  </button>
+                  <li key={rel.name}>
+                    <button className="reply-bond" onClick={() => onSelectTag(rel.name)} {...hover(rel.name)}>
+                      <span className="reply-bond-name">{rel.name}<ArrowUpRight size={14} /></span>
+                      {shared && <span className="reply-bond-quote">{shared.text}</span>}
+                      {shared?.source && <Attribution source={shared.source} />}
+                      {shared && others > 0 && (
+                        <span className="reply-bond-more">
+                          {others === 1 ? 'e un\'altra frase in comune' : `e altre ${others} frasi in comune`}
+                        </span>
+                      )}
+                    </button>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           </div>
         )}
       </div>
