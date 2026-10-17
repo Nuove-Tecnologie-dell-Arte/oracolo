@@ -32,7 +32,7 @@ Vedi README per il significato di ciascuno. Per lavorare sul frontend:
 
 ```bash
 cd frontend && npm install && npm run build   # build servita da `backend.main serve`
-cd frontend && npm run dev                     # dev server Vite (non legge le API locali a meno di proxy)
+npm run dev   # dalla radice: avvia backend (serve) + Vite; se :8000 è già attivo lo riusa
 cd frontend && npm run lint && npm run typecheck
 ```
 
