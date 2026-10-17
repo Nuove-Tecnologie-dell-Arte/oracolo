@@ -1,4 +1,4 @@
-import { Sparkles } from 'lucide-react';
+import { ArrowUp, Sparkles } from 'lucide-react';
 import type { FormEvent, RefObject } from 'react';
 
 // Una stella trovata dalla ricerca (sottoinsieme di GraphNode: solo cio' che
@@ -53,6 +53,9 @@ export default function SearchBar({
         placeholder="Fai una domanda all'Oracolo, o cerca un tag"
         aria-label="Fai una domanda all'Oracolo o cerca un tag"
       />
+      <button type="submit" className="ask-button" disabled={busy || !searchTerm.trim()} aria-label="Chiedi all'Oracolo">
+        <ArrowUp size={18} strokeWidth={2} />
+      </button>
       {busy && (
         <span className="oracle-asking">
           {traveling ? 'la nebulosa ti porta dalla tua stella…' : "l'Oracolo cerca tra le stelle…"}

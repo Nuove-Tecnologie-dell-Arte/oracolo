@@ -7,8 +7,6 @@ import {
   fetchGraph,
   fetchNoiseEntries,
   fetchOracleAnswer,
-  fetchStarQuestion,
-  fetchSuggestions,
   fetchTagDetail,
   type Category,
   type NoiseEntry,
@@ -92,7 +90,7 @@ const NOISE_LINK_STRENGTH = 0.04;
 const FOCUS_NEIGHBORS_SHOWN = 0.8;
 const FOCUS_MIN_REACH = 60;
 const FOCUS_MAX_REACH = 190;
-// Le stelle che mostrano la loro domanda (vedi STAR_QUESTIONS) restano
+// Le stelle vicine inquadrate (vedi STAR_QUESTIONS) restano
 // comunque nell'inquadratura, fino a questa distanza.
 const FOCUS_MAX_QUESTION_REACH = 260;
 const FOCUS_MARGIN = 1.15;
@@ -100,14 +98,11 @@ const FOCUS_MIN_DISTANCE = 240;
 // Parte dell'altezza dello schermo utile per l'inquadratura: in alto c'e'
 // l'intestazione, in basso la barra delle domande.
 const FOCUS_VERTICAL_ROOM = 0.72;
-// Ingombro del pannello laterale (larghezza + margine, vedi .detail-dock in
+// Ingombro del pannello laterale (larghezza + margine, vedi .reply-dock in
 // index.css): la stella viene portata al centro dello spazio libero a
 // sinistra del pannello.
-const PANEL_SPACE = 410;
+const PANEL_SPACE = 436;
 const PANEL_MIN_VIEWPORT = 760;
-// Aprendo o chiudendo la scheda la camera si sposta per farle spazio (o
-// per riportare la stella al centro) in questo tempo.
-const PANEL_SHIFT_MS = 900;
 
 // Durata del volo delle stelle (e della camera) quando si richiama una figura.
 const MORPH_MS = 2200;
@@ -149,13 +144,10 @@ const DRIFT_TURN = 0.5;
 // WANDER_DISTANCE, cosi' si vedono anche le stelle attorno da puntare.
 const WANDER_DISTANCE = 430;
 const WANDER_PULLBACK = 1.25;
-// Attorno alla stella aperta, le stelle vicine mostrano una domanda che le
-// rappresenta: sceglierla e' fare quella domanda, e la stella risponde. Sono
-// le STAR_QUESTIONS piu' legate (con piu' frasi in comune; a parita', a
-// caso), escluse quelle gia' attraversate nel viaggio. QUESTION_GAP e' lo
-// spazio in pixel tra la stella e la sua domanda.
+// Attorno alla stella aperta la camera inquadra le STAR_QUESTIONS stelle piu'
+// legate (con piu' frasi in comune; a parita', a caso), escluse quelle gia'
+// attraversate nel viaggio.
 const STAR_QUESTIONS = 6;
-const QUESTION_GAP = 14;
 // ── Figura del viaggio (vedi figures.ts) ──
 // Dopo FIGURE_AFTER domande l'Oracolo sceglie la figura che il viaggio sta
 // disegnando e ne arriva al suo posto una prima parte; poi un'altra parte a
@@ -173,9 +165,6 @@ const FIGURE_COLOR = '#ffe2a8';
 // quanto si gonfia.
 const PULSE_PERIOD = 2.6;
 const PULSE_SWELL = 0.16;
-
-// Domanda che rappresenta una stella vicina a quella aperta.
-type StarQuestion = { tag: string; text: string };
 
 // La figura che il viaggio sta disegnando: dove va ogni sua stella, quale
 // stella (tag) la occupa (null = posto ancora vuoto), quante parti sono
@@ -291,8 +280,6 @@ export default function App() {
   // Domanda del visitatore che guida il viaggio: ogni stella che apre gli
   // risponde a modo suo, finche' non ne fa un'altra.
   const [visitorQuestion, setVisitorQuestion] = useState<string | null>(null);
-  // Domande proposte sopra la barra.
-  const [suggestions, setSuggestions] = useState<string[]>([]);
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
   const [highlightedIds, setHighlightedIds] = useState<string[]>([]);
   const [detailTag, setDetailTag] = useState<TagDetail | null>(null);
@@ -300,15 +287,11 @@ export default function App() {
   const [panelHoverId, setPanelHoverId] = useState<string | null>(null);
   // Scheda della stella aperta o chiusa: su ogni nuova stella parte chiusa,
   // per lasciare spazio alla nebulosa; la apre e la chiude il visitatore.
-  const [panelOpen, setPanelOpen] = useState(false);
   // Viaggio nella nebulosa: le stelle aperte una dopo l'altra, finche' ognuna
   // e' collegata alla precedente. Restano illuminate (anche a scheda chiusa)
   // e il percorso riparte da capo quando si apre una stella non collegata
   // all'ultima.
   const [trail, setTrail] = useState<string[]>([]);
-  // Domande delle stelle vicine a quella aperta (vedi STAR_QUESTIONS),
-  // scritte di nuovo a ogni visita: compaiono man mano che arrivano.
-  const [starQuestions, setStarQuestions] = useState<StarQuestion[]>([]);
   // Cronologia delle domande di tutta la visita, nell'ordine in cui sono
   // state fatte (scritte nella barra o scelte accanto alle stelle).
   const [history, setHistory] = useState<AskedQuestion[]>([]);
@@ -346,7 +329,6 @@ export default function App() {
   // camera vola verso la stella, cosi' l'inquadratura le comprende.
   const questionStarsRef = useRef<{ id: string; tags: string[] } | null>(null);
   // Le domande sullo schermo, che il ciclo di disegno sposta con le stelle.
-  const questionLabels = useRef(new Map<string, HTMLButtonElement>());
   // Il viaggio, leggibile quando si scelgono le stelle vicine.
   const trailRef = useRef<string[]>([]);
   // Vero mentre il mouse e' su una domanda: la camera smette di girare.
@@ -723,7 +705,7 @@ export default function App() {
   // scelgono qui). Con la scheda aperta (`panel`) la mira e' spostata un po'
   // a destra, cosi' che la stella finisca al centro dello spazio libero a
   // sinistra della scheda.
-  const focusView = useCallback((node: GraphNode, panel = false, kept?: string[]) => {
+  const focusView = useCallback((node: GraphNode, kept?: string[]) => {
     const fg = graphRef.current;
     if (!fg || node.x == null || node.y == null || node.z == null) return null;
     const cam = fg.camera();
@@ -741,7 +723,7 @@ export default function App() {
     const rlen = Math.hypot(rx, rz);
     if (rlen < 1e-3) { rx = 1; rz = 0; } else { rx /= rlen; rz /= rlen; }
 
-    const beside = panel && window.innerWidth >= PANEL_MIN_VIEWPORT;
+    const beside = window.innerWidth >= PANEL_MIN_VIEWPORT;
     const share = beside ? Math.min(0.45, PANEL_SPACE / window.innerWidth) : 0;
     const tanHalf = Math.tan((cam.fov * Math.PI) / 360);
     // Mezza apertura utile: in verticale tra intestazione e barra, in
@@ -779,7 +761,6 @@ export default function App() {
   // Apre un tag: zoom sulla stella (a meno che la camera non ci sia gia'
   // arrivata da sola: `fly` falso), illumina le collegate e carica la scheda.
   const openTag = useCallback(async (id: string, fly = true) => {
-    if (selectionRef.current !== id) setPanelOpen(false);
     selectionRef.current = id;
     setSelectedId(id);
     setSearchResultsVisible(false);
@@ -848,19 +829,6 @@ export default function App() {
   useEffect(() => {
     selectedRef.current = selectedId;
   }, [selectedId]);
-
-  // Domande suggerite a chi entra, e a chi ne vuole fare un'altra.
-  const loadSuggestions = useCallback(async () => {
-    try {
-      setSuggestions(await fetchSuggestions());
-    } catch {
-      setSuggestions([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!loading) loadSuggestions();
-  }, [loading, loadSuggestions]);
 
   // Testo oracolare della stella `tag`: la risposta alla domanda del
   // visitatore vista da quella stella oppure, senza domanda, una sentenza
@@ -1046,7 +1014,6 @@ export default function App() {
       ...taken,
       ...(selectedId ? [selectedId] : []),
       ...(planned ? [planned.id, ...planned.tags] : []),
-      ...starQuestions.map((q) => q.tag),
     ]);
     const picked: string[] = [];
     const take = (tag: string) => {
@@ -1062,7 +1029,7 @@ export default function App() {
     }
     [...nodes].sort((a, b) => b.count - a.count).forEach((node) => take(node.id));
     return picked;
-  }, [selectedId, starQuestions, history, nodeById, linkWeights, adjacency, nodes]);
+  }, [selectedId, history, nodeById, linkWeights, adjacency, nodes]);
 
   // Un'altra parte della figura: i primi posti ancora vuoti, nell'ordine
   // del disegno, ricevono le loro stelle.
@@ -1315,14 +1282,6 @@ export default function App() {
     return true;
   }, [nodeById, asking, traveling, selectedId, loadOracleText, travelTo, selectTag]);
 
-  // Il visitatore sceglie la domanda di una stella vicina: la stella
-  // risponde proprio a quella domanda, che entra nella cronologia.
-  const followQuestion = useCallback((question: StarQuestion) => {
-    if (journeyTo(question.tag, question.text)) {
-      setHistory((asked) => [...asked, { question: question.text, tag: question.tag }]);
-    }
-  }, [journeyTo]);
-
   // Dalla cronologia: si torna su quella stella e si rilegge la sua risposta.
   const revisit = useCallback((index: number) => {
     const step = history[index];
@@ -1374,98 +1333,14 @@ export default function App() {
       cancelAnimationFrame(frame);
       controls?.removeEventListener?.('start', stop);
     };
-  }, [selectedId, traveling, asking, nodeById, panelOpen]);
-
-  // Ogni volta che una stella si apre, le sue vicine scrivono una domanda
-  // nuova (vedi STAR_QUESTIONS), che compare appena e' pronta. La domanda
-  // che ha portato fin qui fa da filo: le nuove ne sono il passo successivo.
-  useEffect(() => {
-    setStarQuestions([]);
-    if (!selectedId || traveling) return;
-    const planned = questionStarsRef.current;
-    const tags = planned?.id === selectedId ? planned.tags : planQuestionStars(selectedId);
-    let current = true;
-    for (const tag of tags) {
-      fetchStarQuestion(tag, visitorQuestion)
-        .then((text) => {
-          if (current) setStarQuestions((shown) => [...shown.filter((q) => q.tag !== tag), { tag, text }]);
-        })
-        .catch(() => {
-          // Senza Oracolo la stella resta senza domanda: si apre con un click.
-        });
-    }
-    return () => { current = false; };
-  }, [selectedId, traveling, visitorQuestion, planQuestionStars]);
-
-  // Le domande seguono le loro stelle sullo schermo: ognuna sta dal lato
-  // opposto alla stella aperta (o dall'altro, se finirebbe sotto la scheda o
-  // fuori dallo schermo) e scende un poco se coprirebbe un'altra domanda.
-  useEffect(() => {
-    if (!selectedId || starQuestions.length === 0) return;
-    let frame = 0;
-    const place = () => {
-      const fg = graphRef.current;
-      const center = nodeById.get(selectedId);
-      if (fg && center?.x != null && center.y != null && center.z != null) {
-        const m = fg.camera().matrixWorldInverse.elements;
-        const middle = fg.graph2ScreenCoords(center.x, center.y, center.z);
-        const width = window.innerWidth;
-        const edge = panelOpen && width >= PANEL_MIN_VIEWPORT ? width - PANEL_SPACE : width;
-        const items = starQuestions
-          .map((q) => ({ node: nodeById.get(q.tag), label: questionLabels.current.get(q.tag) }))
-          .filter((item): item is { node: GraphNode; label: HTMLButtonElement } => !!item.node && !!item.label)
-          .map((item) => {
-            const { x = 0, y = 0, z = 0 } = item.node;
-            const ahead = depthAhead(m, x, y, z);
-            return { ...item, ahead, at: fg.graph2ScreenCoords(x, y, z) };
-          })
-          .sort((a, b) => a.at.y - b.at.y);
-        const taken: { left: number; right: number; top: number; bottom: number }[] = [];
-        for (const { label, ahead, at } of items) {
-          if (ahead <= 1) {
-            label.style.visibility = 'hidden';
-            continue;
-          }
-          const w = label.offsetWidth;
-          const h = label.offsetHeight;
-          let toRight = at.x >= middle.x;
-          if (toRight && at.x + QUESTION_GAP + w > edge - 8) toRight = false;
-          if (!toRight && at.x - QUESTION_GAP - w < 8) toRight = true;
-          const left = toRight ? at.x + QUESTION_GAP : at.x - QUESTION_GAP - w;
-          let top = at.y - h / 2;
-          for (const box of taken) {
-            if (left < box.right && left + w > box.left && top < box.bottom && top + h > box.top) top = box.bottom + 4;
-          }
-          taken.push({ left, right: left + w, top, bottom: top + h });
-          label.style.visibility = '';
-          label.style.transform = `translate(${left}px, ${top}px)`;
-        }
-      }
-      frame = requestAnimationFrame(place);
-    };
-    frame = requestAnimationFrame(place);
-    return () => cancelAnimationFrame(frame);
-  }, [selectedId, starQuestions, nodeById, panelOpen]);
-
-  // Il visitatore apre o chiude la scheda: la camera fa spazio alla scheda,
-  // o riporta la stella al centro, senza cambiare le domande attorno.
-  const togglePanel = useCallback(() => {
-    const open = !panelOpen;
-    setPanelOpen(open);
-    const node = selectedId ? nodeById.get(selectedId) : undefined;
-    if (!node || traveling) return;
-    const planned = questionStarsRef.current;
-    const view = focusView(node, open, planned?.id === selectedId ? planned.tags : starQuestions.map((q) => q.tag));
-    if (view) graphRef.current?.cameraPosition(view.position, view.lookAt, PANEL_SHIFT_MS);
-  }, [panelOpen, selectedId, nodeById, traveling, focusView, starQuestions]);
+  }, [selectedId, traveling, asking, nodeById]);
 
   // Dopo aver letto la risposta: un'altra domanda...
   const askAnother = useCallback(() => {
     setVisitorQuestion(null);
     closeDetail();
-    loadSuggestions();
     askInputRef.current?.focus();
-  }, [closeDetail, loadSuggestions]);
+  }, [closeDetail]);
 
   // ...oppure viaggiare nella nebulosa: la scheda si chiude e la camera
   // arretra quanto basta a vedere la stella con le sue vicine, da puntare.
@@ -1499,10 +1374,7 @@ export default function App() {
     // completo si legge al passaggio del mouse (nodeLabel), il click non fa
     // nulla.
     if (node.kind === 'message') return;
-    // Una stella vicina che mostra la sua domanda: sceglierla e' fare quella domanda.
-    const question = starQuestions.find((q) => q.tag === node.id);
-    if (question) followQuestion(question);
-    else selectTag(node.id);
+    selectTag(node.id);
   };
 
   // Tasti: Esc chiude la scheda e scioglie la figura; i tasti di SHAPE_KEYS
@@ -1685,44 +1557,6 @@ export default function App() {
             ))}
           </svg>
         )}
-        {starQuestions.length > 0 && (
-          <div className="star-questions" aria-label="Domande delle stelle vicine">
-            {starQuestions.map((question) => (
-              <button
-                key={question.tag}
-                type="button"
-                className="star-question"
-                ref={(label) => {
-                  if (label) questionLabels.current.set(question.tag, label);
-                  else questionLabels.current.delete(question.tag);
-                }}
-                style={{ visibility: 'hidden' }}
-                onClick={() => {
-                  orbitPaused.current = false;
-                  followQuestion(question);
-                }}
-                onMouseEnter={() => {
-                  orbitPaused.current = true;
-                  setPanelHoverId(question.tag);
-                }}
-                onMouseLeave={() => {
-                  orbitPaused.current = false;
-                  setPanelHoverId(null);
-                }}
-                onFocus={() => {
-                  orbitPaused.current = true;
-                  setPanelHoverId(question.tag);
-                }}
-                onBlur={() => {
-                  orbitPaused.current = false;
-                  setPanelHoverId(null);
-                }}
-              >
-                {question.text}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       <TopBar
@@ -1740,14 +1574,6 @@ export default function App() {
         linkCount={graphData.links.length}
         receded={!!(selectedId || traveling || revealing)}
       />
-
-      {suggestions.length > 0 && !selectedId && !busy && !shapeActive && !revealing && !searchTerm.trim() && (
-        <div className="oracle-suggestions" aria-label="Domande suggerite">
-          {suggestions.map((question) => (
-            <button key={question} type="button" onClick={() => askTheOracle(question)}>{question}</button>
-          ))}
-        </div>
-      )}
 
       {revealing && figure && (
         <section className="figure-reveal" aria-live="polite">
@@ -1804,8 +1630,6 @@ export default function App() {
         onWander={wander}
         figureReady={!!figure && figure.steps >= FIGURE_STEPS && !revealing}
         onRevealFigure={revealFigure}
-        open={panelOpen}
-        onToggle={togglePanel}
       />
 
       {showAbout && <AboutOverlay onClose={() => setShowAbout(false)} />}

@@ -132,24 +132,6 @@ export async function askOracle(question: string): Promise<OracleReply> {
   return res.json();
 }
 
-// Domande che chi visita potrebbe fare, da proporgli sopra la barra.
-export async function fetchSuggestions(): Promise<string[]> {
-  const res = await fetch(`${API_BASE}api/suggestions`);
-  if (!res.ok) throw await oracleError(res);
-  return (await res.json()).questions;
-}
-
-// Una domanda che rappresenta la stella `tag`, scritta di nuovo a ogni
-// richiesta. `asked` e' la domanda che ha portato il visitatore dove si
-// trova: la nuova ne e' il passo successivo.
-export async function fetchStarQuestion(tag: string, asked: string | null): Promise<string> {
-  const query = new URLSearchParams({ tag });
-  if (asked) query.set('asked', asked);
-  const res = await fetch(`${API_BASE}api/oracle/star-question?${query}`);
-  if (!res.ok) throw await oracleError(res);
-  return (await res.json()).question;
-}
-
 // La figura che il viaggio sta disegnando (vedi figures.ts) e, se `speak`,
 // la frase con cui l'Oracolo la rivela. Con `figure` la figura e' gia' scelta.
 export type FigureReply = { figure: string; name: string; text: string | null };
