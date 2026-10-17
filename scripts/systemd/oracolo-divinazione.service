@@ -1,0 +1,26 @@
+[Unit]
+Description=Oracolo (divinazione, porta 8001)
+After=network.target ollama.service ollama-oracolo.service
+Wants=ollama-oracolo.service
+
+[Service]
+User=@UTENTE@
+WorkingDirectory=@DIR@
+Environment=SERVE_PORT=8001
+Environment=PYTHONUNBUFFERED=1
+# Tag oracolari e risposte nella voce del Libro dei Mutamenti.
+Environment=TAG_MODE=oracolare
+Environment=ORACLE_VOICE=ching
+Environment=OLLAMA_ORACLE_MODEL=ching
+Environment=OLLAMA_TAG_MODEL=qwen3.5-9b
+# Generazione sull'Ollama dedicato, embedding su quello di sistema (ha bge-m3).
+Environment=OLLAMA_HOST=http://127.0.0.1:11500
+Environment=OLLAMA_EMBED_HOST=http://127.0.0.1:11434
+# La prima richiesta dopo una pausa carica il modello sulla GPU.
+Environment=OLLAMA_TIMEOUT_SECONDS=120
+ExecStart=@PYTHON@ -m backend.main serve
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
