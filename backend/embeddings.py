@@ -97,14 +97,23 @@ def _to_vector(blob: bytes) -> array:
     return vector
 
 
+# Come i passi, anche i vettori delle entry si tengono in memoria: l'Oracolo
+# li consulta a ogni domanda e rileggerli tutti dal DB sarebbe uno spreco.
+_entry_vectors: dict = {"signature": None, "items": {}}
+
+
 def load_entry_vectors() -> dict[int, array]:
-    """Vettori di tutte le entry calcolati con il modello attuale."""
-    vectors: dict[int, array] = {}
-    for row in db_local.get_entry_embeddings():
-        if row["model"] != config.OLLAMA_EMBED_MODEL:
-            continue
-        vectors[row["entry_id"]] = _to_vector(row["vector"])
-    return vectors
+    """Vettori di tutte le entry calcolati con il modello attuale. Il
+    dizionario e' condiviso tra le chiamate: va solo letto, non modificato."""
+    signature = db_local.get_entry_embeddings_signature()
+    if _entry_vectors["signature"] != signature:
+        _entry_vectors["items"] = {
+            row["entry_id"]: _to_vector(row["vector"])
+            for row in db_local.get_entry_embeddings()
+            if row["model"] == config.OLLAMA_EMBED_MODEL
+        }
+        _entry_vectors["signature"] = signature
+    return _entry_vectors["items"]
 
 
 def similarity(a: array, b: array) -> float:

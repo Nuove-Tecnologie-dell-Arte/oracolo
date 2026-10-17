@@ -278,6 +278,23 @@ def get_entry_embeddings() -> list[sqlite3.Row]:
         ).fetchall()
 
 
+def get_entry_embeddings_signature() -> tuple[int, int, int]:
+    """Impronta leggera dei vettori delle entry (senza leggerli): cambia
+    quando ne arrivano di nuovi o ne viene ricalcolato uno, perche' allora
+    cambia anche l'impronta del testo (text_hash) da cui e' stato fatto."""
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT COUNT(*) AS n, COALESCE(MAX(entry_id), 0) AS last,
+                COALESCE(SUM(unicode(substr(text_hash, 1, 1)) * 65536
+                    + unicode(substr(text_hash, 2, 1)) * 256
+                    + unicode(substr(text_hash, 3, 1))), 0) AS mix
+            FROM entry_embeddings
+            """
+        ).fetchone()
+        return row["n"], row["last"], row["mix"]
+
+
 def upsert_entry_embeddings(rows: list[dict]) -> None:
     """Salva (o sostituisce) i vettori di similarita' delle entry."""
     if not rows:
