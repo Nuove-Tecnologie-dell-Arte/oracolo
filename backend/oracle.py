@@ -22,12 +22,12 @@ import math
 import random
 import re
 import time
-import unicodedata
 from collections import Counter, defaultdict
 
 import requests
 
 from backend import db_local, embeddings, library, ollama
+from backend.textutil import plain
 from backend.logging_utils import get_logger
 
 log = get_logger(__name__)
@@ -378,13 +378,6 @@ def ask(question: str) -> dict | None:
     }
 
 
-def _plain(text: str) -> str:
-    """Minuscolo e senza accenti: "liberta" e "libertà" sono la stessa parola."""
-    return "".join(
-        ch for ch in unicodedata.normalize("NFD", text.lower()) if not unicodedata.combining(ch)
-    )
-
-
 def star_question(tag: str, asked: str | None = None) -> str | None:
     """Una domanda che chi visita potrebbe fare e a cui la stella `tag`
     saprebbe rispondere. Con `asked` (la domanda che lo ha portato sulla
@@ -410,7 +403,7 @@ def star_question(tag: str, asked: str | None = None) -> str | None:
         if not question.endswith("?") or question.count("?") != 1 or len(words) > STAR_QUESTION_WORDS:
             log.debug("Domanda della stella scartata (tentativo %d): %r", attempt + 1, question)
             continue
-        if _plain(tag) not in _plain(question):
+        if plain(tag) not in plain(question):
             return question
         fallback = fallback or question  # nomina il tema: va bene se non c'e' di meglio
     if fallback is None:
