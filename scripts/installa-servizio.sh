@@ -2,22 +2,26 @@
 # Installa Oracolo "divinazione" come servizio di sistema sul lab, accanto al
 # servizio "oracolo" del main (porta 8000), che non viene toccato.
 #
-#   cd ~/Projects/oracolo && git checkout main && bash scripts/installa-servizio.sh
+#   bash scripts/installa-servizio.sh      # da qualunque copia di lavoro del repo
 #
-# Crea una seconda copia di lavoro del branch (git worktree) perche' una cartella
-# non puo' servire due branch, ci copia il DB e il .env, ne costruisce il
-# frontend e installa due servizi: ollama-oracolo (porta 11500) e
-# oracolo-divinazione (porta 8001). Chiede la password di sudo per systemd.
+# La cartella originale del progetto (quella con il servizio "oracolo", il DB,
+# il .env e il venv) deve essere sul branch main. Lo script crea una seconda
+# copia di lavoro del branch (git worktree), perche' una cartella non puo'
+# servire due branch, ci copia il DB e il .env, ne costruisce il frontend e
+# installa due servizi: ollama-oracolo (porta 11500) e oracolo-divinazione
+# (porta 8001). Chiede la password di sudo per systemd.
 #
 # Variabili: DEST (default ~/Projects/oracolo-divinazione), BRANCH (divinazione).
 
 set -euo pipefail
 
-SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# SRC e' la cartella originale, ovunque stia lanciato lo script (il .git
+# comune a tutte le copie di lavoro sta li').
+SRC="$(dirname "$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --path-format=absolute --git-common-dir)")"
 DEST="${DEST:-$HOME/Projects/oracolo-divinazione}"
 BRANCH="${BRANCH:-divinazione}"
 PYTHON="$SRC/.venv/bin/python"
-UNITS="$SRC/scripts/systemd"
+UNITS="$DEST/scripts/systemd"
 SERVIZI=(ollama-oracolo oracolo-divinazione)
 
 passo() { printf '\n\033[1;36m== %s\033[0m\n' "$*"; }
@@ -26,7 +30,7 @@ fallisci() { echo "ERRORE: $*" >&2; exit 1; }
 passo "1/6 Controlli"
 [ -x "$PYTHON" ] || fallisci "manca il venv: $PYTHON"
 cd "$SRC"
-[ "$(git branch --show-current)" = "main" ] || fallisci "questa cartella ($SRC) serve il servizio 'oracolo' del main: portala su main con 'git checkout main' (poi 'cd frontend && npm run build' per la sua build)."
+[ "$(git branch --show-current)" = "main" ] || fallisci "la cartella originale ($SRC) serve il servizio 'oracolo' del main: portala su main con 'git checkout main' (poi 'cd frontend && npm run build' per la sua build)."
 git fetch origin "$BRANCH" 2>/dev/null || true
 git rev-parse --verify -q "$BRANCH" >/dev/null || git branch "$BRANCH" "origin/$BRANCH"
 porta_occupata() { ss -ltn "sport = :$1" | tail -n +2 | grep -q .; }
@@ -43,6 +47,7 @@ if [ -d "$DEST/.git" ] || [ -f "$DEST/.git" ]; then
     git -C "$DEST" pull --ff-only origin "$BRANCH"
 else
     git worktree add "$DEST" "$BRANCH"
+    git -C "$DEST" pull --ff-only origin "$BRANCH"
 fi
 
 passo "3/6 DB e configurazione"
