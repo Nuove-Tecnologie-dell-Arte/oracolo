@@ -47,6 +47,17 @@ OLLAMA_EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "bge-m3")
 OLLAMA_TAG_MODEL = os.getenv("OLLAMA_TAG_MODEL", "llama3.1")
 MAX_TAGS_PER_ENTRY = _int("MAX_TAGS_PER_ENTRY", 3)
 
+# "razionale": tag che descrivono l'argomento (liberi, aperti). "oracolare":
+# ogni pensiero e' letto tra le righe e ricondotto a 1-2 delle 64 situazioni
+# di backend/situazioni.json (vocabolario chiuso, ispirato agli esagrammi).
+TAG_MODE = os.getenv("TAG_MODE", "razionale").strip().lower()
+if TAG_MODE not in ("razionale", "oracolare"):
+    raise ValueError(f"TAG_MODE '{TAG_MODE}' non valido: usa 'razionale' o 'oracolare'")
+# Se false (default) si passa "think": false a Ollama: i modelli che ragionano
+# (es. Qwen3.5) altrimenti producono migliaia di token di pensiero e vanno in
+# timeout per una risposta di poche righe.
+OLLAMA_THINK = os.getenv("OLLAMA_THINK", "false").strip().lower() in ("1", "true", "yes", "si")
+
 # --- Testi letti dall'Oracolo (libri, tesi, interviste) ---
 # Cartella in cui mettere i PDF e i TXT, e quante citazioni di ogni testo
 # entrano nella nebulosa come stelle (tutto il resto resta consultabile).

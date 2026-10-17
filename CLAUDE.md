@@ -10,6 +10,7 @@ dettagli tecnici vedi [README.md](README.md) (ha anche una sezione
 ```
 backend/     backend Python (pipeline dati, logica dell'Oracolo, webserver stdlib)
 frontend/    frontend React/Vite ("La Nebulosa"), buildato in frontend/dist
+scripts/     script di shell per lavori lunghi sul lab (es. `tagga-oracolare.sh`)
 hosting/     endpoint PHP da caricare sul server che espone il DB MySQL
 testi/       libri/tesi/interviste letti dall'Oracolo (non versionati, tranne fonti.json)
 legacy/      residui del progetto Bolt.new/Supabase originale, non più in uso

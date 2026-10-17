@@ -29,7 +29,7 @@ from collections import Counter, defaultdict
 
 import requests
 
-from backend import config, db_local, embeddings, library
+from backend import config, db_local, embeddings, library, ollama
 from backend.logging_utils import get_logger
 
 log = get_logger(__name__)
@@ -178,12 +178,12 @@ _FIRST_PERSON = re.compile(r"\b(io|mio|mia|miei|mie|mi|noi|nostr[oaie])\b", re.I
 def _generate(prompt: str, temperature: float) -> str:
     response = requests.post(
         f"{config.OLLAMA_HOST}/api/generate",
-        json={
+        json=ollama.generative({
             "model": config.OLLAMA_TAG_MODEL,
             "prompt": prompt,
             "stream": False,
             "options": {"temperature": temperature},
-        },
+        }),
         timeout=config.OLLAMA_TIMEOUT_SECONDS,
     )
     response.raise_for_status()
@@ -346,7 +346,7 @@ def _generate_suggestions(entries: list[dict]) -> list[str]:
     for _ in range(3):
         response = requests.post(
             f"{config.OLLAMA_HOST}/api/generate",
-            json={
+            json=ollama.generative({
                 "model": config.OLLAMA_TAG_MODEL,
                 "prompt": SUGGESTIONS_PROMPT.format(
                     tags=", ".join(random.sample(tags, min(40, len(tags)))),
@@ -356,7 +356,7 @@ def _generate_suggestions(entries: list[dict]) -> list[str]:
                 "stream": False,
                 "format": "json",
                 "options": {"temperature": 0.9},
-            },
+            }),
             timeout=config.OLLAMA_TIMEOUT_SECONDS,
         )
         response.raise_for_status()

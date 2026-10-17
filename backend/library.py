@@ -547,9 +547,12 @@ def _jobs(path: Path, meta: dict, stars: int | None) -> list[dict]:
         texts = [{"key": path.name, "author": meta["author"], "text": _flowing_text(pages)}]
     for item in texts:
         item.update(title=meta["title"], kind=meta.get("kind"), stars=stars)
-        # Cambia se cambia il testo, la sua attribuzione o il modo di leggerlo.
+        # Cambia se cambia il testo, la sua attribuzione o il modo di leggerlo
+        # (anche passando ai tag oracolari, vedi themes.assign). In modalita'
+        # razionale la stringa e' quella di sempre: i testi gia' letti restano.
+        mode = "" if config.TAG_MODE == "razionale" else f"|{config.TAG_MODE}"
         item["content_hash"] = embeddings.text_hash(
-            f"{INGEST_VERSION}|{meta['title']}|{item['author']}|{stars}|{item['text']}"
+            f"{INGEST_VERSION}{mode}|{meta['title']}|{item['author']}|{stars}|{item['text']}"
         )
     return texts
 

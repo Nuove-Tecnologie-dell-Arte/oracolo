@@ -18,6 +18,13 @@ log = get_logger(__name__)
 RETRY_PAUSES = (2, 5, 15)
 
 
+def generative(payload: dict) -> dict:
+    """Il payload per /api/generate con "think" impostato da OLLAMA_THINK
+    (spento di default): da usare in ogni chiamata generativa, altrimenti un
+    modello che ragiona (es. Qwen3.5) va in timeout."""
+    return {**payload, "think": config.OLLAMA_THINK}
+
+
 def post(endpoint: str, payload: dict) -> dict:
     """POST a Ollama (es. "/api/embed"); ritorna la risposta JSON. Riprova
     se la connessione cade, scade il tempo o Ollama risponde con un errore

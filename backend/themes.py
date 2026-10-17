@@ -21,7 +21,7 @@ import unicodedata
 from array import array
 from difflib import get_close_matches
 
-from backend import config, db_local, embeddings, ollama
+from backend import config, db_local, embeddings, ollama, tagging
 from backend.logging_utils import get_logger
 
 log = get_logger(__name__)
@@ -161,7 +161,7 @@ def _picked(text: str, near: list[tuple[float, str]]) -> list[str]:
     """I temi, tra quelli vicini, che secondo il modello descrivono la frase."""
     reply = ollama.post(
         "/api/generate",
-        {
+        ollama.generative({
             "model": config.OLLAMA_TAG_MODEL,
             "prompt": PICK_PROMPT.format(
                 text=text,
@@ -172,7 +172,7 @@ def _picked(text: str, near: list[tuple[float, str]]) -> list[str]:
             # Risposta corta e senza estro: il limite evita anche che, in
             # modalita' JSON, il modello resti a generare a vuoto.
             "options": {"temperature": 0, "num_predict": 40},
-        },
+        }),
     )
     try:
         numbers = json.loads(reply["response"]).get("temi", [])
@@ -217,12 +217,12 @@ def _new_theme(text: str, vector: array, index: ThemeIndex) -> str | None:
     in un altro modo, vale quello."""
     reply = ollama.post(
         "/api/generate",
-        {
+        ollama.generative({
             "model": config.OLLAMA_TAG_MODEL,
             "prompt": NEW_THEME_PROMPT.format(text=text),
             "stream": False,
             "options": {"temperature": 0, "num_predict": 24},
-        },
+        }),
     )
     words: list[str] = []
     for piece in re.split(r"[,;/\n]+", reply["response"].lower()):
@@ -237,8 +237,26 @@ def _new_theme(text: str, vector: array, index: ThemeIndex) -> str | None:
     return _existing(words[0], index.names())
 
 
+def _assign_oracular(text: str, vector: array, index: ThemeIndex) -> list[str]:
+    """Le situazioni (1-2 delle 64) che leggono la citazione: lo stesso
+    vocabolario chiuso dei pensieri (vedi tagging.py), quindi non nascono
+    stelle nuove e non serve il tetto per stella (le stelle sono al massimo
+    64). La citazione resta letterale: il modello sceglie solo i tag."""
+    tags, _, _ = tagging._ask_ollama_for_reading(text)
+    if not tags:
+        # Il modello non ha dato nessuna situazione valida: vale la piu'
+        # vicina per significato ai pensieri, se la nebulosa ne ha.
+        near = index.nearest(vector, 1)
+        tags = [near[0][1]] if near else []
+    tags = tags[: config.MAX_TAGS_PER_ENTRY]
+    index.add_quote(tags)
+    return tags
+
+
 def assign(text: str, vector: array, index: ThemeIndex) -> list[str]:
     """I temi di una citazione; aggiorna l'indice con i temi assegnati."""
+    if config.TAG_MODE == "oracolare":
+        return _assign_oracular(text, vector, index)
     ranked = index.nearest(vector, WIDE_NET)
     # Le stelle che hanno gia' la loro parte di citazioni non si propongono.
     near = [item for item in ranked if not index.full(item[1])][:CANDIDATES]

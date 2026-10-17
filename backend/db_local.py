@@ -99,6 +99,11 @@ def init_db() -> None:
             # fondo), assegnato da Ollama in fase di tag (vedi backend/tagging.py).
             # NULL finche' l'entry non e' stata (ri)taggata con questo campo.
             conn.execute("ALTER TABLE entries ADD COLUMN noise_score REAL")
+        if "reading" not in columns:
+            # Lettura oracolare: la frase che dice che cosa c'e' tra le righe
+            # del pensiero (solo con TAG_MODE=oracolare, vedi backend/tagging.py).
+            # NULL nei tag razionali.
+            conn.execute("ALTER TABLE entries ADD COLUMN reading TEXT")
 
 
 def upsert_entries(rows: list[dict]) -> int:
@@ -211,6 +216,11 @@ def set_entry_tags(entry_id: int, tag_names: list[str]) -> None:
 def set_noise_score(entry_id: int, score: float) -> None:
     with get_connection() as conn:
         conn.execute("UPDATE entries SET noise_score = ? WHERE id = ?", (score, entry_id))
+
+
+def set_reading(entry_id: int, reading: str | None) -> None:
+    with get_connection() as conn:
+        conn.execute("UPDATE entries SET reading = ? WHERE id = ?", (reading, entry_id))
 
 
 def get_entries_by_noise_score(category: str | None, min_score: float) -> list[dict]:

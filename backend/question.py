@@ -3,7 +3,7 @@ import random
 
 import requests
 
-from backend import config, db_local
+from backend import config, db_local, ollama
 from backend.logging_utils import get_logger
 
 log = get_logger(__name__)
@@ -58,12 +58,12 @@ def _ask_ollama_for_questions(tags: list[str], samples: list[dict], count: int) 
     )
     response = requests.post(
         f"{config.OLLAMA_HOST}/api/generate",
-        json={
+        json=ollama.generative({
             "model": config.OLLAMA_TAG_MODEL,
             "prompt": prompt,
             "stream": False,
             "format": "json",
-        },
+        }),
         timeout=config.OLLAMA_TIMEOUT_SECONDS,
     )
     response.raise_for_status()
