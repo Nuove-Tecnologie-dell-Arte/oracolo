@@ -25,14 +25,15 @@ def generative(payload: dict) -> dict:
     return {**payload, "think": config.OLLAMA_THINK}
 
 
-def post(endpoint: str, payload: dict) -> dict:
-    """POST a Ollama (es. "/api/embed"); ritorna la risposta JSON. Riprova
+def post(endpoint: str, payload: dict, host: str | None = None) -> dict:
+    """POST a Ollama (es. "/api/embed"), a `host` o, se manca, a OLLAMA_HOST;
+    ritorna la risposta JSON. Riprova
     se la connessione cade, scade il tempo o Ollama risponde con un errore
     temporaneo (5xx)."""
     for attempt, pause in enumerate((*RETRY_PAUSES, None), start=1):
         try:
             response = requests.post(
-                f"{config.OLLAMA_HOST}{endpoint}",
+                f"{host or config.OLLAMA_HOST}{endpoint}",
                 json=payload,
                 timeout=config.OLLAMA_TIMEOUT_SECONDS,
             )

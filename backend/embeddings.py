@@ -43,6 +43,7 @@ def embed_texts(texts: list[str], on_batch=None) -> list[array]:
         reply = ollama.post(
             "/api/embed",
             {"model": config.OLLAMA_EMBED_MODEL, "input": batch},
+            host=config.OLLAMA_EMBED_HOST,
         )
         vectors.extend(normalized(v) for v in reply["embeddings"])
         if on_batch:
@@ -69,7 +70,7 @@ def ensure_entry_embeddings(entries: list[dict]) -> int:
 
     log.info(
         "Calcolo i vettori di similarita' per %d entry (modello '%s' su %s)...",
-        len(pending), config.OLLAMA_EMBED_MODEL, config.OLLAMA_HOST,
+        len(pending), config.OLLAMA_EMBED_MODEL, config.OLLAMA_EMBED_HOST,
     )
     progress = new_bar(len(pending), desc="Embedding", unit="entry")
     for start in range(0, len(pending), BATCH_SIZE):

@@ -43,6 +43,10 @@ LOCAL_DB_PATH = os.getenv("LOCAL_DB_PATH", "data/local.db")
 SYNC_INTERVAL_MINUTES = _int("SYNC_INTERVAL_MINUTES", 60)
 
 OLLAMA_HOST = _ollama_url(os.getenv("OLLAMA_HOST") or "http://localhost:11434")
+# Ollama a cui chiedere gli embedding: di default lo stesso della generazione.
+# Separato per poter generare con un Ollama diverso (es. un modello che sta solo
+# su un'istanza temporanea) tenendo gli embedding su quello che ha gia' bge-m3.
+OLLAMA_EMBED_HOST = _ollama_url(os.getenv("OLLAMA_EMBED_HOST") or OLLAMA_HOST)
 OLLAMA_EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "bge-m3")
 OLLAMA_TAG_MODEL = os.getenv("OLLAMA_TAG_MODEL", "llama3.1")
 MAX_TAGS_PER_ENTRY = _int("MAX_TAGS_PER_ENTRY", 3)

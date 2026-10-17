@@ -43,12 +43,13 @@ def _noise_threshold(query: dict) -> float:
 STARTED_AT = time.strftime("%Y-%m-%d %H:%M:%S")
 
 
-def _ollama_problem(error: requests.RequestException) -> str:
-    """Spiega in parole semplici perche' una chiamata a Ollama e' fallita."""
+def _ollama_problem(error: requests.RequestException, host: str | None = None) -> str:
+    """Spiega in parole semplici perche' una chiamata a Ollama e' fallita
+    (`host`: l'Ollama chiamato, OLLAMA_HOST se non indicato)."""
     if isinstance(error, requests.Timeout):
         return f"Ollama non ha risposto entro {config.OLLAMA_TIMEOUT_SECONDS} secondi"
     if isinstance(error, requests.ConnectionError):
-        return f"Ollama non e' raggiungibile su {config.OLLAMA_HOST}: e' acceso?"
+        return f"Ollama non e' raggiungibile su {host or config.OLLAMA_HOST}: e' acceso?"
     if isinstance(error, requests.HTTPError) and error.response is not None:
         detail = error.response.text.strip()[:200]
         return f"Ollama ha risposto con un errore ({error.response.status_code}): {detail}"
@@ -65,23 +66,37 @@ def _health() -> dict:
         "entry_con_tag": sum(1 for e in entries if e["tags"]),
         "ollama": {"indirizzo": config.OLLAMA_HOST},
     }
+    unreachable = status["ollama"]
     try:
         db_local.init_db()
         status["entry_con_vettore"] = len(db_local.get_entry_embeddings())
         status["testi_letti"] = len(db_local.get_sources())
         status["passi_in_biblioteca"] = db_local.get_passages_signature()[0]
-        response = requests.get(f"{config.OLLAMA_HOST}/api/tags", timeout=10)
-        response.raise_for_status()
-        models = [m["name"] for m in response.json().get("models", [])]
-        wanted = [config.OLLAMA_TAG_MODEL, config.OLLAMA_EMBED_MODEL]
-        missing = [w for w in wanted if not any(m == w or m.startswith(f"{w}:") for m in models)]
-        status["ollama"].update(raggiungibile=True, modelli=models, modelli_mancanti=missing)
+        # Un Ollama per la generazione e, se diverso, uno per gli embedding
+        # (OLLAMA_EMBED_HOST): ognuno deve avere i suoi modelli.
+        if config.OLLAMA_EMBED_HOST == config.OLLAMA_HOST:
+            checks = [(status["ollama"], [config.OLLAMA_TAG_MODEL, config.OLLAMA_EMBED_MODEL])]
+        else:
+            status["ollama_embedding"] = {"indirizzo": config.OLLAMA_EMBED_HOST}
+            checks = [
+                (status["ollama"], [config.OLLAMA_TAG_MODEL]),
+                (status["ollama_embedding"], [config.OLLAMA_EMBED_MODEL]),
+            ]
+        missing: list[str] = []
+        for info, wanted in checks:
+            unreachable = info  # se la richiesta fallisce, e' questo l'Ollama irraggiungibile
+            response = requests.get(f"{info['indirizzo']}/api/tags", timeout=10)
+            response.raise_for_status()
+            models = [m["name"] for m in response.json().get("models", [])]
+            absent = [w for w in wanted if not any(m == w or m.startswith(f"{w}:") for m in models)]
+            info.update(raggiungibile=True, modelli=models, modelli_mancanti=absent)
+            missing += absent
         status["problema"] = (
             f"su Ollama mancano i modelli: {', '.join(missing)}" if missing else None
         )
     except requests.RequestException as error:
-        status["ollama"]["raggiungibile"] = False
-        status["problema"] = _ollama_problem(error)
+        unreachable["raggiungibile"] = False
+        status["problema"] = _ollama_problem(error, unreachable["indirizzo"])
     if status.get("problema") is None and not status["entry_con_tag"]:
         status["problema"] = "nessuna entry con tag: esegui 'sync' e 'tag' (o 'seed')"
     return status
