@@ -51,6 +51,16 @@ OLLAMA_EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "bge-m3")
 OLLAMA_TAG_MODEL = os.getenv("OLLAMA_TAG_MODEL", "llama3.1")
 MAX_TAGS_PER_ENTRY = _int("MAX_TAGS_PER_ENTRY", 3)
 
+# Voce delle risposte dell'Oracolo. "sibilla": una frase breve, scritta dal
+# modello OLLAMA_TAG_MODEL. "ching": verso di poche righe e commento nel tono
+# del Libro dei Mutamenti, scritti dal modello OLLAMA_ORACLE_MODEL, che deve
+# portare con se' quella voce (es. il modello "ching" creato con Modelfile
+# sopra qwen3.5-9b: il suo prompt di sistema e i suoi esempi fanno il tono).
+ORACLE_VOICE = os.getenv("ORACLE_VOICE", "sibilla").strip().lower()
+if ORACLE_VOICE not in ("sibilla", "ching"):
+    raise ValueError(f"ORACLE_VOICE '{ORACLE_VOICE}' non valido: usa 'sibilla' o 'ching'")
+OLLAMA_ORACLE_MODEL = os.getenv("OLLAMA_ORACLE_MODEL") or OLLAMA_TAG_MODEL
+
 # "razionale": tag che descrivono l'argomento (liberi, aperti). "oracolare":
 # ogni pensiero e' letto tra le righe e ricondotto a 1-2 delle 64 situazioni
 # di backend/situazioni.json (vocabolario chiuso, ispirato agli esagrammi).

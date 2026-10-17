@@ -99,13 +99,17 @@ export type OracleReply = {
   tag: string;
   // stelle affini da attraversare prima di arrivare a `tag`
   path: string[];
+  // la risposta: una frase, o il verso (righe separate da a capo)
   answer: string;
+  // il commento al verso (vuoto se l'Oracolo risponde con una sola frase)
+  commentary?: string;
   entries: OracleThought[];
   readings?: OracleReading[];
 };
 
 export type OracleAnswer = {
   answer: string;
+  commentary?: string;
   entries?: OracleThought[];
   readings?: OracleReading[];
 };

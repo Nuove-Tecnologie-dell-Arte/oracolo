@@ -12,8 +12,11 @@ export type OracleState = {
   // domanda del visitatore a cui la stella risponde (null = nessuna: la
   // stella pronuncia una sentenza sul suo tema)
   question: string | null;
-  // testo oracolare; null finche' l'Oracolo lo sta formulando
+  // testo oracolare (una frase, o un verso di piu' righe separate da a
+  // capo); null finche' l'Oracolo lo sta formulando
   text: string | null;
+  // commento al verso, vuoto se l'Oracolo risponde con una sola frase
+  commentary: string;
   // pensieri della nebulosa a cui si e' ispirato
   entries: OracleThought[];
   // frasi dei testi che ha consultato, citate con titolo e autore
@@ -29,25 +32,41 @@ function Attribution({ source }: { source?: TextSource | null }) {
 }
 
 // Il testo dell'Oracolo compare una parola alla volta, come se lo stesse
-// pronunciando in quel momento.
-function OracleText({ text }: { text: string }) {
-  const words = useMemo(() => text.split(/\s+/).filter(Boolean), [text]);
+// pronunciando in quel momento: il verso riga per riga e, quando l'ha detto
+// tutto, il commento.
+function OracleText({ text, commentary }: { text: string; commentary: string }) {
+  const lines = useMemo(
+    () => text.split('\n').map((line) => line.split(/\s+/).filter(Boolean)).filter((line) => line.length > 0),
+    [text],
+  );
+  const total = useMemo(() => lines.reduce((sum, line) => sum + line.length, 0), [lines]);
   const still = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  const [said, setSaid] = useState(still ? words.length : 0);
+  const [said, setSaid] = useState(still ? total : 0);
 
   useEffect(() => {
-    if (said >= words.length) return;
+    if (said >= total) return;
     const timer = window.setTimeout(() => setSaid(said + 1), said === 0 ? 500 : 130);
     return () => window.clearTimeout(timer);
-  }, [said, words.length]);
+  }, [said, total]);
 
+  let spoken = 0;
   return (
-    <p className="detail-oracle-answer" aria-label={text}>
-      {words.map((word, i) => (
-        // le parole non cambiano posizione: la chiave puo' essere l'indice
-        <span key={i} className={i < said ? 'is-said' : undefined} aria-hidden="true">{word} </span>
-      ))}
-    </p>
+    <>
+      <p className="detail-oracle-answer" aria-label={lines.map((line) => line.join(' ')).join(' ')}>
+        {lines.map((line, row) => (
+          // le righe non cambiano posizione: la chiave puo' essere l'indice
+          <span key={row} className="oracle-line" aria-hidden="true">
+            {line.map((word, i) => {
+              const index = spoken++;
+              return <span key={i} className={`oracle-word${index < said ? ' is-said' : ''}`}>{word} </span>;
+            })}
+          </span>
+        ))}
+      </p>
+      {commentary && (
+        <p className={`detail-oracle-commentary${said >= total ? ' is-said' : ''}`}>{commentary}</p>
+      )}
+    </>
   );
 }
 
@@ -188,7 +207,7 @@ export default function TagDetailPanel({
           <section className="detail-oracle" aria-label="L'Oracolo">
             <p className="detail-oracle-heading"><Sparkles size={12} /> L'Oracolo</p>
             {voice.text && !arriving ? (
-              <OracleText key={voice.text} text={voice.text} />
+              <OracleText key={voice.text} text={voice.text} commentary={voice.commentary} />
             ) : (
               <p className="detail-oracle-waiting">la stella sta per parlare…</p>
             )}

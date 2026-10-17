@@ -190,6 +190,75 @@ def _generate(prompt: str, temperature: float) -> str:
     return _clean(response.json()["response"])
 
 
+# --- Voce "ching" (ORACLE_VOICE=ching) ---
+# Il tono lo da' il modello (vedi config.ORACLE_VOICE): qui si descrive solo
+# cosa chiedergli e si separa la risposta in verso e commento.
+CHING_MATERIAL = """
+Immagini da cui puoi trarre ispirazione, senza citarle (pensieri di altri \
+viaggiatori): prendine al massimo un oggetto, un gesto o un luogo.
+{thoughts}
+{readings}"""
+CHING_ASK = "{question}\n" + CHING_MATERIAL
+CHING_VOICE = (
+    "Chi ti visita si ferma davanti al tema \u00ab{tag}\u00bb e attende una parola. "
+    "Non nominare il tema.\n" + CHING_MATERIAL
+)
+CHING_ATTEMPTS = 2
+CHING_MAX_VERSE_LINES = 8
+CHING_MAX_TOKENS = 500
+
+
+def _split_ching(text: str) -> tuple[str, str]:
+    """(verso, commento) dalla risposta del modello: il verso e' il primo
+    blocco di righe, il commento il paragrafo che segue una riga vuota. Toglie
+    grassetti, titoli ed elenchi che il modello non dovrebbe usare. Il
+    commento e' "" se manca."""
+    text = re.sub(r"[*_#`]+", "", text).strip()
+    blocks = [b for b in re.split(r"\n\s*\n", text) if b.strip()]
+    if not blocks:
+        return "", ""
+    verse_lines = [line.strip().lstrip("-\u2022 ").strip() for line in blocks[0].splitlines() if line.strip()]
+    commentary = " ".join(" ".join(b.split()) for b in blocks[1:])
+    return "\n".join(verse_lines), commentary
+
+
+def _ching_reply(user_message: str) -> tuple[str, str]:
+    """(verso, commento) dall'Oracolo "ching". Riprova se manca uno dei due o
+    se il verso e' troppo lungo per essere un verso; ("", "") se non riesce."""
+    for _ in range(CHING_ATTEMPTS):
+        response = requests.post(
+            f"{config.OLLAMA_HOST}/api/generate",
+            json=ollama.generative({
+                "model": config.OLLAMA_ORACLE_MODEL,
+                "prompt": user_message,
+                "stream": False,
+                # La temperatura e gli altri parametri li fissa il Modelfile.
+                "options": {"num_predict": CHING_MAX_TOKENS},
+            }),
+            timeout=config.OLLAMA_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        verse, commentary = _split_ching(response.json()["response"])
+        if verse and commentary and verse.count("\n") < CHING_MAX_VERSE_LINES:
+            return verse, commentary
+        log.debug("Risposta 'ching' non utilizzabile: %r / %r", verse, commentary)
+    return "", ""
+
+
+def _oracle_words(question: str | None, tag: str | None, thoughts: str, readings: str, sibyl_prompt: str, sibyl_temperature: float) -> dict:
+    """Le parole dell'Oracolo: {"answer": ..., "commentary": ...}. Nella voce
+    "sibilla" e' una frase e il commento e' vuoto; nella voce "ching" "answer"
+    e' il verso (andando a capo tra le righe) e "commentary" il commento."""
+    if config.ORACLE_VOICE == "ching":
+        if question:
+            message = CHING_ASK.format(question=question, thoughts=thoughts, readings=readings)
+        else:
+            message = CHING_VOICE.format(tag=tag, thoughts=thoughts, readings=readings)
+        verse, commentary = _ching_reply(message)
+        return {"answer": verse or SILENCE, "commentary": commentary}
+    return {"answer": _generate(sibyl_prompt, sibyl_temperature) or SILENCE, "commentary": ""}
+
+
 def _clean(text: str) -> str:
     """Solo la prima riga, senza virgolette, trattini da elenco o spazi."""
     lines = [line.strip() for line in text.strip().splitlines() if line.strip()]
@@ -296,23 +365,23 @@ def answer(question: str | None, tag: str | None = None) -> dict:
     if tag:
         entries = [e for e in entries if tag in e["tags"]] or entries
     if not entries:
-        return {"answer": SILENCE, "entries": [], "readings": []}
+        return {"answer": SILENCE, "commentary": "", "entries": [], "readings": []}
 
     if question:
         vector = embeddings.embed_texts([question])[0]
         near = [entry for _, entry in _nearest(vector, entries, NEAREST)]
         block, readings = _consult(vector, near[:SHOWN])
         prompt = ANSWER_PROMPT.format(thoughts=_thoughts(near), readings=block, question=question)
-        text = _generate(prompt, 0.9)
+        words = _oracle_words(question, tag, _thoughts(near), block, prompt, 0.9)
     else:
         near = random.sample(entries, min(6, len(entries)))
         # Senza domanda si consultano i testi sul tema della stella.
         vector = embeddings.embed_texts([f"{tag}. " + " ".join(e["text"] for e in near[:3])])[0]
         block, readings = _consult(vector, near[:SHOWN])
         prompt = VOICE_PROMPT.format(tag=tag, thoughts=_thoughts(near), readings=block)
-        text = _generate(prompt, 0.8)
+        words = _oracle_words(None, tag, _thoughts(near), block, prompt, 0.8)
     return {
-        "answer": text or SILENCE,
+        **words,
         "entries": [_view(e) for e in near[:SHOWN]],
         "readings": readings,
     }
@@ -416,13 +485,13 @@ def ask(question: str) -> dict | None:
 
     block, readings = _consult(vector, shown)
     prompt = ANSWER_PROMPT.format(thoughts=_thoughts(near), readings=block, question=question)
-    text = _generate(prompt, 0.9)
+    words = _oracle_words(question, tag, _thoughts(near), block, prompt, 0.9)
     return {
         "question": question,
         "tag": tag,
         # stelle affini da attraversare prima di arrivare, dalla meno vicina
         "path": ranked[1:3][::-1],
-        "answer": text or SILENCE,
+        **words,
         "entries": [_view(e) for e in shown],
         # citazioni dai testi letti, con titolo e autore
         "readings": readings,

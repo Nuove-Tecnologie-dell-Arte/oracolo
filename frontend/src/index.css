@@ -257,8 +257,13 @@ button.detail-history-step:hover, button.detail-history-step:focus-visible { col
 .detail-oracle-label { font: 8px 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .1em; color: #a39b93; margin: 0 0 5px; }
 .detail-oracle-answer { font: italic 500 19px/1.4 'Playfair Display', serif; color: #ffd58a; margin: 0; }
 /* Le parole compaiono una alla volta (vedi OracleText). */
-.detail-oracle-answer span { opacity: 0; transition: opacity .7s ease; }
-.detail-oracle-answer span.is-said { opacity: 1; }
+.detail-oracle-answer .oracle-line { display: block; }
+.detail-oracle-answer .oracle-word { opacity: 0; transition: opacity .7s ease; }
+.detail-oracle-answer .oracle-word.is-said { opacity: 1; }
+/* Il commento al verso compare quando il verso e' stato detto tutto. */
+.detail-oracle-commentary { font: 500 14px/1.6 'Playfair Display', serif; color: #d9cdbd; margin: 14px 0 0; opacity: 0; transition: opacity 1.2s ease; }
+.detail-oracle-commentary.is-said { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .detail-oracle-commentary { transition: none; } }
 .detail-oracle-waiting { font: italic 500 14px/1.5 'Playfair Display', serif; color: #a39b93; margin: 0; animation: oracleBreath 1.8s ease-in-out infinite; }
 .detail-oracle-sources { margin-top: 14px; }
 .detail-oracle-sources p:not(.detail-oracle-label) { color: #b9b1a8; font-size: 11px; line-height: 1.5; font-style: italic; margin: 0 0 4px; padding-left: 10px; border-left: 1px solid rgba(255,213,138,.3); }
