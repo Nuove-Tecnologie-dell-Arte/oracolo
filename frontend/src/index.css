@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;1,500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,500;1,6..72,500&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -10,6 +10,7 @@
   background: #080a0d;
   /* Gli estremi della scala delle stelle (sceneMath.ts, IMPORTANCE_STOPS):
      fredde = tag con un solo pensiero, calde = i piu' ricorrenti. */
+  --font-voice: 'Newsreader', Georgia, serif;
   --star-cool: #8a7eff;
   --star-mid: #bea4ff;
   --star-warm: #ffb054;
@@ -41,7 +42,7 @@ button { color: inherit; }
 /* ── Barra superiore: marchio a sinistra, categorie al centro, strumenti a destra ── */
 .topbar { top: 0; left: 0; right: 0; height: 84px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 42px; background: linear-gradient(180deg, rgba(8,10,13,.82) 0%, rgba(8,10,13,.5) 55%, rgba(8,10,13,0) 100%); }
 .brand { display: flex; align-items: baseline; gap: 16px; min-width: 0; }
-.brand-name { margin: 0; font: italic 500 28px/1 'Playfair Display', serif; letter-spacing: -.01em; color: #eee8df; white-space: nowrap; }
+.brand-name { margin: 0; font: italic 500 28px/1 var(--font-voice); letter-spacing: -.01em; color: #eee8df; white-space: nowrap; }
 .brand-name svg { color: #d7a66e; margin-right: 9px; vertical-align: 0.12em; }
 .brand-count { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8f8983; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .status-dot { width: 5px; height: 5px; background: var(--star-cool); border-radius: 50%; box-shadow: 0 0 9px var(--star-cool); }
@@ -75,7 +76,7 @@ button { color: inherit; }
 .panel-heading { display: flex; align-items: center; justify-content: space-between; color: #8d867f; border-bottom: 1px solid rgba(236,226,211,.2); padding-bottom: 12px; font-size: 11px; }
 .mono-label { font-size: 11px; color: #b3865f; }
 .field-title { margin: 0 0 14px; color: #eee8df; font-size: 28px; line-height: 1.14; letter-spacing: -.03em; font-weight: 500; text-wrap: balance; }
-.field-title em { font-family: 'Playfair Display', serif; font-weight: 500; color: #d7a776; }
+.field-title em { font-family: var(--font-voice); font-weight: 500; color: #d7a776; }
 .field-copy { color: #a39b93; font-size: 13px; line-height: 1.75; margin: 0; max-width: 238px;  text-wrap: pretty; }
 .field-legend { list-style: none; margin: 26px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
 .field-legend li { display: flex; align-items: center; gap: 14px; font-size: 12px; color: #a39b93; }
@@ -88,11 +89,11 @@ button { color: inherit; }
 /* Barra della domanda: niente scatola, solo un filo ambra sotto la voce di chi
    chiede (stesso serif corsivo dell'Oracolo). La sfumatura dietro serve a
    tenere leggibile il testo sopra la nebulosa. */
-.oracle-input-wrap { bottom: 53px; left: 50%; transform: translateX(-50%); width: min(680px, calc(100vw - 40px)); height: 64px; display: flex; align-items: center; gap: 14px; padding: 0 4px 0 2px; border-bottom: 1px solid rgba(217,174,125,.5); box-shadow: 0 12px 24px -18px rgba(217,174,125,0); transition: box-shadow .35s, border-color .35s; }
+.oracle-input-wrap { bottom: 53px; left: 50%; transform: translateX(-50%); width: min(680px, calc(100vw - 40px)); height: 64px; display: flex; align-items: center; gap: 14px; padding: 0 4px 0 2px; border-bottom: 1px solid rgba(217,174,125,.5); transition: border-color .35s; }
 .oracle-input-wrap::before { content: ''; position: absolute; inset: -46px -70px -24px; z-index: -1; background: radial-gradient(ellipse at 50% 60%, rgba(8,10,13,.8) 0%, rgba(8,10,13,.55) 45%, rgba(8,10,13,0) 72%); pointer-events: none; }
-.oracle-input-wrap:focus-within { border-color: #e1b47f; box-shadow: 0 12px 24px -16px rgba(217,174,125,.55); }
+.oracle-input-wrap:focus-within { border-color: #e1b47f; }
 .input-icon { color: #d7a66e; display: flex; flex: none; }
-.oracle-input-wrap input { flex: 1; min-width: 0; height: 100%; color: #eee8df; background: transparent; border: 0; outline: 0; font: italic 500 20px/1.2 'Playfair Display', serif; letter-spacing: .005em; }
+.oracle-input-wrap input { flex: 1; min-width: 0; height: 100%; color: #eee8df; background: transparent; border: 0; outline: 0; font: italic 500 20px/1.2 var(--font-voice); letter-spacing: .005em; }
 .oracle-input-wrap input::placeholder { color: #8f8983; }
 .ask-button { flex: none; width: 40px; height: 40px; display: grid; place-items: center; color: #14090f; background: #d9a66d; border: 0; border-radius: 50%; cursor: pointer; transition: background .2s, transform .2s, opacity .2s; }
 .ask-button:hover:not(:disabled) { background: #e7bd8d; transform: translateX(2px); }
@@ -128,7 +129,7 @@ button { color: inherit; }
 .modal-close:hover { border-color: #d7a66e; color: #e1b47f; }
 .modal-eyebrow { font: 11px 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .09em; color: #9c8e7e; margin: 0 0 8px; }
 .modal-title { font-size: 26px; line-height: 1.1; letter-spacing: -.03em; font-weight: 500; color: #e7dfd3; margin: 0 0 24px; }
-.modal-title em { font-family: 'Playfair Display', serif; font-weight: 500; color: #d7a776; }
+.modal-title em { font-family: var(--font-voice); font-weight: 500; color: #d7a776; }
 
 /* ── Modal form ── */
 .modal-form { display: flex; flex-direction: column; gap: 16px; }
@@ -155,11 +156,11 @@ button { color: inherit; }
 .detail-title { font-size: 24px; line-height: 1.15; letter-spacing: -.03em; font-weight: 500; color: #e7dfd3; margin: 0 0 6px; }
 /* Quando la stella risponde a una domanda, il titolo e' la domanda e il tag
    resta come piccola etichetta sopra. */
-.detail-title.is-question { font: italic 500 21px/1.3 'Playfair Display', serif; letter-spacing: 0; color: #f0e3cf; margin-bottom: 12px; }
+.detail-title.is-question { font: italic 500 21px/1.3 var(--font-voice); letter-spacing: 0; color: #f0e3cf; margin-bottom: 12px; }
 
 /* Domande delle stelle vicine: seguono la loro stella sullo schermo. */
 .star-questions { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
-.star-question { position: absolute; left: 0; top: 0; max-width: 230px; padding: 7px 12px; border-radius: 14px; border: 1px solid rgba(217,174,125,.35); background: rgba(17,19,21,.62); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); color: #f0e3cf; font: italic 500 13px/1.3 'Playfair Display', serif; text-align: left; cursor: pointer; pointer-events: auto; will-change: transform; animation: questionAppear .9s ease both; transition: background .2s, border-color .2s, color .2s; }
+.star-question { position: absolute; left: 0; top: 0; max-width: 230px; padding: 7px 12px; border-radius: 14px; border: 1px solid rgba(217,174,125,.35); background: rgba(17,19,21,.62); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); color: #f0e3cf; font: italic 500 13px/1.3 var(--font-voice); text-align: left; cursor: pointer; pointer-events: auto; will-change: transform; animation: questionAppear .9s ease both; transition: background .2s, border-color .2s, color .2s; }
 .star-question:hover, .star-question:focus-visible { background: rgba(217,174,125,.24); border-color: rgba(255,213,138,.75); color: #fff; outline: none; }
 @keyframes questionAppear { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .star-question { animation: none; } }
@@ -265,7 +266,7 @@ button { color: inherit; }
 .detail-history ol { list-style: none; margin: 0; padding: 0 0 0 12px; max-height: 9.6em; overflow-y: auto; border-left: 1px solid rgba(95,224,255,.3); }
 .detail-history li { position: relative; }
 .detail-history li::before { content: ''; position: absolute; left: -15px; top: .62em; width: 5px; height: 5px; border-radius: 50%; background: rgba(95,224,255,.7); }
-.detail-history-step { display: block; width: 100%; padding: 3px 0; border: 0; background: none; text-align: left; font: italic 12px/1.4 'Playfair Display', serif; color: #8fdcf2; cursor: pointer; transition: color .2s; }
+.detail-history-step { display: block; width: 100%; padding: 3px 0; border: 0; background: none; text-align: left; font: italic 12px/1.4 var(--font-voice); color: #8fdcf2; cursor: pointer; transition: color .2s; }
 button.detail-history-step:hover, button.detail-history-step:focus-visible { color: #fff; outline: none; }
 .detail-history-step.is-current { color: #fff; cursor: default; }
 
@@ -280,11 +281,11 @@ button.detail-history-step:hover, button.detail-history-step:focus-visible { col
 .detail-oracle { margin-top: 20px; padding: 16px 16px 14px; border: 1px solid rgba(255,213,138,.3); border-radius: 10px; background: linear-gradient(150deg, rgba(255,213,138,.1), rgba(255,213,138,.02) 60%); }
 .detail-oracle-heading { display: flex; align-items: center; gap: 6px; font: 11px 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .14em; color: #e1b47f; margin: 0 0 12px; }
 .detail-oracle-label { font: 11px 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .08em; color: #a39b93; margin: 0 0 5px; }
-.detail-oracle-answer { font: italic 500 19px/1.4 'Playfair Display', serif; color: #ffd58a; margin: 0; }
+.detail-oracle-answer { font: italic 500 19px/1.4 var(--font-voice); color: #ffd58a; margin: 0; }
 /* Le parole compaiono una alla volta (vedi OracleText). */
 .detail-oracle-answer span { opacity: 0; transition: opacity .7s ease; }
 .detail-oracle-answer span.is-said { opacity: 1; }
-.detail-oracle-waiting { font: italic 500 14px/1.5 'Playfair Display', serif; color: #a39b93; margin: 0; animation: oracleBreath 1.8s ease-in-out infinite; }
+.detail-oracle-waiting { font: italic 500 14px/1.5 var(--font-voice); color: #a39b93; margin: 0; animation: oracleBreath 1.8s ease-in-out infinite; }
 .detail-oracle-sources { margin-top: 14px; }
 .detail-oracle-sources p:not(.detail-oracle-label) { color: #b9b1a8; font-size: 12px; line-height: 1.5; font-style: italic; margin: 0 0 4px; padding-left: 10px; border-left: 1px solid rgba(255,213,138,.3); }
 .detail-oracle-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
@@ -301,7 +302,7 @@ button.detail-history-step:hover, button.detail-history-step:focus-visible { col
 /* Rivelazione della figura: la frase dell'Oracolo sopra la barra. */
 .figure-reveal { position: absolute; z-index: 3; left: 50%; bottom: 128px; transform: translateX(-50%); width: min(620px, calc(100vw - 40px)); padding: 18px 22px 16px; border-radius: 14px; border: 1px solid rgba(255,213,138,.4); background: rgba(14,15,18,.72); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); text-align: center; animation: figureAppear 1.6s ease both; }
 .figure-reveal-kicker { font: 11px 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .14em; color: #e1b47f; margin: 0 0 10px; }
-.figure-reveal-text { font: italic 500 19px/1.45 'Playfair Display', serif; color: #ffe2a8; margin: 0 0 14px; }
+.figure-reveal-text { font: italic 500 19px/1.45 var(--font-voice); color: #ffe2a8; margin: 0 0 14px; }
 .figure-reveal button { font: 11px 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .08em; padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(255,213,138,.5); background: transparent; color: #f0d9b0; cursor: pointer; transition: background .2s, color .2s; }
 .figure-reveal button:hover, .figure-reveal button:focus-visible { background: rgba(255,213,138,.16); color: #fff; outline: none; }
 @keyframes figureAppear { 0%, 40% { opacity: 0; transform: translate(-50%, 8px); } 100% { opacity: 1; transform: translate(-50%, 0); } }
@@ -311,20 +312,17 @@ button.detail-history-step:hover, button.detail-history-step:focus-visible { col
 @keyframes oracleBreath { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
 
 /* Domande suggerite, sopra la barra: un click e l'Oracolo risponde. */
-.oracle-suggestions { position: absolute; z-index: 2; left: 50%; bottom: 134px; transform: translateX(-50%); width: min(760px, calc(100vw - 40px)); display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; animation: fadeIn .6s ease; }
-.oracle-suggestions button { font: italic 500 13px/1.2 'Playfair Display', serif; color: #e8dccb; padding: 9px 15px; border-radius: 999px; border: 1px solid rgba(217,174,125,.35); background: rgba(17,19,21,.55); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); cursor: pointer; transition: background .2s, border-color .2s, color .2s; }
-.oracle-suggestions button:hover { background: rgba(217,174,125,.2); border-color: rgba(255,213,138,.7); color: #fff; }
-@media (max-width: 760px) { .oracle-suggestions { bottom: 104px; } .oracle-input-wrap input, .oracle-asking { font-size: 17px; } }
+@media (max-width: 760px) { .oracle-input-wrap input, .oracle-asking { font-size: 17px; } }
 
 /* Barra delle domande: invita finche' non la si usa, e mostra l'attesa. */
 .oracle-input-wrap.is-inviting { animation: oracleInvite 2.6s ease-in-out infinite; }
-@keyframes oracleInvite { 0%, 100% { border-color: rgba(217,174,125,.4); box-shadow: 0 12px 24px -18px rgba(217,174,125,0); } 50% { border-color: rgba(240,217,176,.9); box-shadow: 0 14px 28px -14px rgba(255,213,138,.5); } }
+@keyframes oracleInvite { 0%, 100% { border-color: rgba(217,174,125,.4); } 50% { border-color: rgba(240,217,176,.9); } }
 /* Durante l'attesa si legge solo la scritta dell'Oracolo: spariscono sia la
    domanda scritta sia il testo d'invito (che compare quando la domanda viene
    da un suggerimento, o e' gia' stata tolta per il viaggio). */
 .oracle-input-wrap.is-asking input,
 .oracle-input-wrap.is-asking input::placeholder { color: transparent; }
-.oracle-asking { position: absolute; left: 34px; right: 60px; font: italic 500 20px 'Playfair Display', serif; color: #e1b47f; pointer-events: none; animation: oracleBreath 1.8s ease-in-out infinite; }
+.oracle-asking { position: absolute; left: 34px; right: 60px; font: italic 500 20px var(--font-voice); color: #e1b47f; pointer-events: none; animation: oracleBreath 1.8s ease-in-out infinite; }
 .search-ask .search-result-label { color: #f0d9b0; font-style: italic; }
 
 /* Tag collegati, ognuno con la frase che lo unisce al tag aperto. */

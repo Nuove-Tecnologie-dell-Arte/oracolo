@@ -8,7 +8,6 @@ import {
   fetchNoiseEntries,
   fetchOracleAnswer,
   fetchStarQuestion,
-  fetchSuggestions,
   fetchTagDetail,
   type Category,
   type NoiseEntry,
@@ -291,8 +290,6 @@ export default function App() {
   // Domanda del visitatore che guida il viaggio: ogni stella che apre gli
   // risponde a modo suo, finche' non ne fa un'altra.
   const [visitorQuestion, setVisitorQuestion] = useState<string | null>(null);
-  // Domande proposte sopra la barra.
-  const [suggestions, setSuggestions] = useState<string[]>([]);
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
   const [highlightedIds, setHighlightedIds] = useState<string[]>([]);
   const [detailTag, setDetailTag] = useState<TagDetail | null>(null);
@@ -848,19 +845,6 @@ export default function App() {
   useEffect(() => {
     selectedRef.current = selectedId;
   }, [selectedId]);
-
-  // Domande suggerite a chi entra, e a chi ne vuole fare un'altra.
-  const loadSuggestions = useCallback(async () => {
-    try {
-      setSuggestions(await fetchSuggestions());
-    } catch {
-      setSuggestions([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!loading) loadSuggestions();
-  }, [loading, loadSuggestions]);
 
   // Testo oracolare della stella `tag`: la risposta alla domanda del
   // visitatore vista da quella stella oppure, senza domanda, una sentenza
@@ -1463,9 +1447,8 @@ export default function App() {
   const askAnother = useCallback(() => {
     setVisitorQuestion(null);
     closeDetail();
-    loadSuggestions();
     askInputRef.current?.focus();
-  }, [closeDetail, loadSuggestions]);
+  }, [closeDetail]);
 
   // ...oppure viaggiare nella nebulosa: la scheda si chiude e la camera
   // arretra quanto basta a vedere la stella con le sue vicine, da puntare.
@@ -1740,14 +1723,6 @@ export default function App() {
         linkCount={graphData.links.length}
         receded={!!(selectedId || traveling || revealing)}
       />
-
-      {suggestions.length > 0 && !selectedId && !busy && !shapeActive && !revealing && !searchTerm.trim() && (
-        <div className="oracle-suggestions" aria-label="Domande suggerite">
-          {suggestions.map((question) => (
-            <button key={question} type="button" onClick={() => askTheOracle(question)}>{question}</button>
-          ))}
-        </div>
-      )}
 
       {revealing && figure && (
         <section className="figure-reveal" aria-live="polite">

@@ -132,13 +132,6 @@ export async function askOracle(question: string): Promise<OracleReply> {
   return res.json();
 }
 
-// Domande che chi visita potrebbe fare, da proporgli sopra la barra.
-export async function fetchSuggestions(): Promise<string[]> {
-  const res = await fetch(`${API_BASE}api/suggestions`);
-  if (!res.ok) throw await oracleError(res);
-  return (await res.json()).questions;
-}
-
 // Una domanda che rappresenta la stella `tag`, scritta di nuovo a ogni
 // richiesta. `asked` e' la domanda che ha portato il visitatore dove si
 // trova: la nuova ne e' il passo successivo.
