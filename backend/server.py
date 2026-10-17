@@ -112,19 +112,16 @@ class Handler(SimpleHTTPRequestHandler):
 
     def _api_get(self, path: str) -> None:
         if path == "/api/graph":
-            query = parse_qs(urlsplit(self.path).query)
+            query = self._query()
             self._send_json(200, graph.build_graph_json(_category_filter(query)))
             return
         if path.startswith("/api/tag/"):
             tag_name = unquote(path[len("/api/tag/"):])
-            query = parse_qs(urlsplit(self.path).query)
+            query = self._query()
             self._handle_tag_detail(tag_name, _category_filter(query))
             return
         if path == "/api/questions":
             self._handle_questions()
-            return
-        if path == "/api/oracle/question":
-            self._handle_oracle_question()
             return
         if path == "/api/oracle/star-question":
             self._handle_star_question()
@@ -133,7 +130,7 @@ class Handler(SimpleHTTPRequestHandler):
             self._send_json(200, {"questions": oracle.suggestions()})
             return
         if path == "/api/noise":
-            query = parse_qs(urlsplit(self.path).query)
+            query = self._query()
             entries = db_local.get_entries_by_noise_score(
                 _category_filter(query), _noise_threshold(query)
             )
@@ -177,28 +174,10 @@ class Handler(SimpleHTTPRequestHandler):
             return
         self._send_json(200, {"questions": questions})
 
-    def _handle_oracle_question(self) -> None:
-        """Domanda dell'Oracolo per una stella: ?tag=<nome>&trail=<tappe,precedenti>."""
-        query = parse_qs(urlsplit(self.path).query)
-        tag = query.get("tag", [""])[0].strip()
-        trail = [t for t in query.get("trail", [""])[0].split(",") if t]
-        if not tag:
-            self._send_json(400, {"error": "manca 'tag'"})
-            return
-        try:
-            question = oracle.question_for_tag(tag, trail)
-        except requests.RequestException as error:
-            self._oracle_unreachable(error)
-            return
-        if question is None:
-            self._send_json(404, {"error": "tag non trovato"})
-            return
-        self._send_json(200, {"question": question})
-
     def _handle_star_question(self) -> None:
         """Domanda che rappresenta una stella: ?tag=<nome>&asked=<domanda che ha
         portato il visitatore dove si trova, facoltativa>. Ogni volta nuova."""
-        query = parse_qs(urlsplit(self.path).query)
+        query = self._query()
         tag = query.get("tag", [""])[0].strip()
         asked = query.get("asked", [""])[0].strip() or None
         if not tag:
@@ -300,6 +279,10 @@ class Handler(SimpleHTTPRequestHandler):
 
         tagged = tagging.tag_pending_entries()
         self._send_json(200, {"inserted": len(ids), "tagged": tagged})
+
+    def _query(self) -> dict[str, list[str]]:
+        """Parametri della query string della richiesta."""
+        return parse_qs(urlsplit(self.path).query)
 
     def _read_json(self) -> dict | None:
         """Corpo JSON della richiesta; se non e' valido risponde 400 e ritorna None."""

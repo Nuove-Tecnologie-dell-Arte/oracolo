@@ -7,8 +7,6 @@
 - `answer`: testo oracolare di una stella: la risposta alla domanda del
   visitatore vista da quella stella, oppure, senza domanda, una sentenza sul
   suo tema.
-- `question_for_tag`: una domanda che l'Oracolo fa al visitatore fermo su
-  una stella.
 - `star_question`: una domanda che rappresenta una stella, da mostrarle
   accanto: chi la sceglie viaggia fin li' e la stella gli risponde.
 
@@ -120,30 +118,6 @@ SUGGESTIONS_ENOUGH = 7
 SUGGESTIONS_SHOWN = 4
 SUGGESTIONS_TTL = 600
 _suggestions: dict = {"at": 0.0, "pool": []}
-
-QUESTION_PROMPT = """Sei l'Oracolo di una nebulosa fatta dei pensieri anonimi di tante persone. \
-Chi ti visita si è fermato sulla stella "{tag}"{path}.
-
-Pensieri raccolti in questa stella (ti servono solo per capire il tema: non \
-parlare a nome di chi li ha scritti):
-{thoughts}
-
-Fai al visitatore UNA domanda sulla SUA vita. Regole:
-- in italiano, al massimo 14 parole, una sola frase che finisce con il punto di domanda;
-- parla solo di lui, dandogli del tu: mai "io", "mio", "mia", "mi", "noi", "nostro";
-- parti da qualcosa di concreto (un oggetto, un luogo, un gesto, una persona), non da un concetto;
-- non usare la parola "{tag}";
-- non iniziare con "Ricordi", "Cosa significa" o "Come puoi".
-
-Esempi del tono, su altri temi (non copiarli):
-- Di chi è la voce che senti quando la casa è vuota?
-- Da quanto tempo non apri quel cassetto?
-- Chi ti aspettava alla fermata, quel giorno?
-- Dove hai nascosto la lettera che non hai spedito?
-
-Scrivi solo la domanda."""
-
-FALLBACK_QUESTION = "Che cosa ti ha portato fin qui?"
 
 # Domanda che rappresenta una stella: chi visita la vede accanto alla stella
 # e, scegliendola, viaggia fin li' e la stella gli risponde. Viene scritta di
@@ -427,37 +401,6 @@ def ask(question: str) -> dict | None:
         # citazioni dai testi letti, con titolo e autore
         "readings": readings,
     }
-
-
-def _acceptable(question: str, tag: str) -> bool:
-    words = question.split()
-    return (
-        question.endswith("?")
-        and 3 <= len(words) <= 20
-        and question.count("?") == 1
-        and tag.lower() not in question.lower()
-        and not _FIRST_PERSON.search(question)
-    )
-
-
-def question_for_tag(tag: str, trail: list[str] | None = None) -> str | None:
-    """Una domanda dell'Oracolo a chi si e' fermato sulla stella `tag`,
-    dopo essere passato da `trail`. None se la stella non esiste."""
-    entries = [e for e in _tagged_entries() if tag in e["tags"]]
-    if not entries:
-        return None
-    sample = random.sample(entries, min(7, len(entries)))
-    before = [t for t in (trail or []) if t != tag][-4:]
-    path = f", dopo essere passato da: {', '.join(before)}" if before else ""
-    prompt = QUESTION_PROMPT.format(tag=tag, path=path, thoughts=_thoughts(sample))
-
-    for attempt in range(QUESTION_ATTEMPTS):
-        question = _generate(prompt, 0.9)
-        if _acceptable(question, tag):
-            return question
-        log.debug("Domanda scartata (tentativo %d): %r", attempt + 1, question)
-    log.warning("Nessuna domanda accettabile per la stella '%s'", tag)
-    return FALLBACK_QUESTION
 
 
 def _plain(text: str) -> str:

@@ -25,6 +25,7 @@ import {
   endpoints,
   evenPath,
   hash01,
+  depthAhead,
   importanceColor,
   pairKey,
   reducedMotion,
@@ -211,6 +212,23 @@ const TRAIL_LINK_COLOR = 'rgba(95, 224, 255, 0.9)';
 
 const emptyGraph: TagGraph = { nodes: [], links: [] };
 
+// Battito (0-1) della stella aperta e del suo alone all'istante `now` (ms).
+const heartbeat = (now: number) => 0.5 + 0.5 * Math.sin((now / 1000) * ((2 * Math.PI) / PULSE_PERIOD));
+
+// Stelle (tag) che occupano davvero un posto della figura.
+const filledSeats = (stars: (string | null)[]) => stars.filter((tag): tag is string => tag !== null);
+
+// Rimette una stella libera nella simulazione, dopo che una figura la teneva ferma.
+const releaseNode = (node: GraphNode) => {
+  node.fx = undefined;
+  node.fy = undefined;
+  node.fz = undefined;
+};
+
+// Mira di OrbitControls (punto guardato dalla camera), se i controlli ci sono.
+const controlsTarget = (fg: ForceGraphHandle) =>
+  (fg.controls() as { target?: { x: number; y: number; z: number } } | undefined)?.target;
+
 type ForceGraphHandle = {
   cameraPosition: (pos: { x?: number; y?: number; z?: number }, lookAt?: { x: number; y: number; z: number }, ms?: number) => void;
   camera: () => {
@@ -248,6 +266,10 @@ const NOISE_LABEL_LENGTH = 80;
 // nasce ogni nodo-messaggio (vedi noiseNodes): si mescolano cosi' alle
 // stelle esistenti invece di restare un gruppo isolato per conto proprio.
 const NOISE_SPREAD = 20;
+
+// Stella a cui si lega il nodo-messaggio di `entry`, scelta in base al suo id.
+const noiseAnchor = (nodes: GraphNode[], entry: NoiseEntry) =>
+  nodes[Math.floor(hash01(`rumore:${entry.id}`) * nodes.length) % nodes.length];
 
 export default function App() {
   const [category] = useState<Category>(categoryFromUrl);
@@ -392,7 +414,7 @@ export default function App() {
   const noiseNodes = useMemo<GraphNode[]>(() => {
     if (!noiseVisible || !nodes.length) return [];
     return noiseEntries.map((entry) => {
-      const anchor = nodes[Math.floor(hash01(`rumore:${entry.id}`) * nodes.length) % nodes.length];
+      const anchor = noiseAnchor(nodes, entry);
       const key = `rumore:${entry.id}`;
       return {
         id: `msg:${entry.id}`,
@@ -412,7 +434,7 @@ export default function App() {
   const noiseLinks = useMemo<GraphLink[]>(() => {
     if (!noiseVisible || !nodes.length) return [];
     return noiseEntries.map((entry) => {
-      const anchor = nodes[Math.floor(hash01(`rumore:${entry.id}`) * nodes.length) % nodes.length];
+      const anchor = noiseAnchor(nodes, entry);
       return { source: anchor.id, target: `msg:${entry.id}`, value: 1 };
     });
   }, [noiseVisible, noiseEntries, nodes]);
@@ -444,7 +466,7 @@ export default function App() {
   // cambiarne colore o grandezza di base.
   useEffect(() => {
     if (loading) return;
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    if (reducedMotion()) return;
     const rhythms = nodes.map((node) => ({
       node,
       speed: (2 * Math.PI) / (TWINKLE_PERIOD[0] + hash01(`${node.id}:ritmo`) * (TWINKLE_PERIOD[1] - TWINKLE_PERIOD[0])),
@@ -453,7 +475,7 @@ export default function App() {
     let frame = 0;
     const tick = (now: number) => {
       // Battito della stella aperta: e' viva, sta parlando.
-      const beat = 0.5 + 0.5 * Math.sin((now / 1000) * ((2 * Math.PI) / PULSE_PERIOD));
+      const beat = heartbeat(now);
       for (const { node, speed, phase } of rhythms) {
         const star = node.__threeObj;
         if (!star) continue;
@@ -494,14 +516,13 @@ export default function App() {
       if (fg && node.x != null && node.y != null && node.z != null) {
         const cam = fg.camera();
         // Distanza della stella davanti alla camera (negativa se e' dietro).
-        const m = cam.matrixWorldInverse.elements;
-        const ahead = -(m[2] * node.x + m[6] * node.y + m[10] * node.z + m[14]);
+        const ahead = depthAhead(cam.matrixWorldInverse.elements, node.x, node.y, node.z);
         if (ahead > 1) {
           const { x, y } = fg.graph2ScreenCoords(node.x, node.y, node.z);
           const viewHeight = glow.parentElement?.querySelector('canvas')?.clientHeight ?? window.innerHeight;
           const pxPerUnit = viewHeight / 2 / Math.tan((cam.fov * Math.PI) / 360) / ahead;
           // L'alone respira insieme al battito della stella.
-          const beat = 0.5 + 0.5 * Math.sin((now / 1000) * ((2 * Math.PI) / PULSE_PERIOD));
+          const beat = heartbeat(now);
           const size = GLOW_RADIUS * 2 * pxPerUnit * (1 + 0.22 * beat);
           glow.style.width = `${size}px`;
           glow.style.height = `${size}px`;
@@ -544,9 +565,7 @@ export default function App() {
       if (to) {
         flights.push({ node, from: [node.x ?? 0, node.y ?? 0, node.z ?? 0], to });
       } else {
-        node.fx = undefined;
-        node.fy = undefined;
-        node.fz = undefined;
+        releaseNode(node);
       }
     }
     fg?.d3ReheatSimulation();
@@ -879,7 +898,7 @@ export default function App() {
   const startDrift = useCallback(() => {
     const fg = graphRef.current;
     if (!fg || reducedMotion()) return;
-    const target = (fg.controls() as { target?: { x: number; y: number; z: number } } | undefined)?.target;
+    const target = controlsTarget(fg);
     const aim = { x: target?.x ?? 0, y: target?.y ?? 0, z: target?.z ?? 0 };
     const cam = fg.camera().position;
     const off: Vec3 = [cam.x - aim.x, cam.y - aim.y, cam.z - aim.z];
@@ -952,7 +971,7 @@ export default function App() {
     }
     points.push(arrival);
 
-    const aim = (fg.controls() as { target?: { x: number; y: number; z: number } } | undefined)?.target;
+    const aim = controlsTarget(fg);
     const lookFrom: Vec3 = aim ? [aim.x, aim.y, aim.z] : [0, 0, 0];
     const to: Vec3 = [end.lookAt.x, end.lookAt.y, end.lookAt.z];
     const mix = (a: Vec3, b: Vec3, k: number): Vec3 => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
@@ -1013,7 +1032,7 @@ export default function App() {
 
   // ── Figura del viaggio (vedi FIGURE_AFTER) ──
   useEffect(() => {
-    figureStars.current = new Set(figure?.stars.filter((tag): tag is string => tag !== null) ?? []);
+    figureStars.current = new Set(filledSeats(figure?.stars ?? []));
   }, [figure]);
 
   // Le `count` stelle da mandare nella figura: prima quelle attraversate
@@ -1050,7 +1069,7 @@ export default function App() {
   const growFigure = useCallback((current: JourneyFigure, asked: number): JourneyFigure => {
     const empty = current.stars.flatMap((tag, i) => (tag ? [] : [i]));
     const slots = empty.slice(0, Math.ceil(current.stars.length / FIGURE_STEPS));
-    const tags = figureCandidates(slots.length, new Set(current.stars.filter((t): t is string => t !== null)));
+    const tags = figureCandidates(slots.length, new Set(filledSeats(current.stars)));
     const stars = [...current.stars];
     slots.forEach((slot, i) => {
       if (tags[i]) stars[slot] = tags[i];
@@ -1150,11 +1169,7 @@ export default function App() {
   const endFigure = useCallback(() => {
     for (const tag of figureStars.current) {
       const node = nodeById.get(tag);
-      if (node) {
-        node.fx = undefined;
-        node.fy = undefined;
-        node.fz = undefined;
-      }
+      if (node) releaseNode(node);
     }
     figureStars.current = new Set();
     figureArrivals.current.clear();
@@ -1196,12 +1211,13 @@ export default function App() {
   }, [history, endFigure, flyToOverview, loadOracleText, selectTag]);
 
   // Tratti della figura (coppie di posti) e stelle che la formano.
+  const figureId = figure?.id;
   const figureSegments = useMemo(
-    () => (figure ? FIGURES[figure.id].chains.flatMap((chain) => chain.slice(1).map((b, i) => [chain[i], b] as const)) : []),
-    [figure?.id]
+    () => (figureId ? FIGURES[figureId].chains.flatMap((chain) => chain.slice(1).map((b, i) => [chain[i], b] as const)) : []),
+    [figureId]
   );
   const figureIds = useMemo(
-    () => new Set(figure?.stars.filter((tag): tag is string => tag !== null) ?? []),
+    () => new Set(filledSeats(figure?.stars ?? [])),
     [figure?.stars]
   );
 
@@ -1214,7 +1230,7 @@ export default function App() {
       const fg = graphRef.current;
       if (fg) {
         const m = fg.camera().matrixWorldInverse.elements;
-        const ahead = (n: GraphNode) => -(m[2] * (n.x ?? 0) + m[6] * (n.y ?? 0) + m[10] * (n.z ?? 0) + m[14]);
+        const ahead = (n: GraphNode) => depthAhead(m, n.x ?? 0, n.y ?? 0, n.z ?? 0);
         figureSegments.forEach(([a, b], i) => {
           const line = figureLines.current[i];
           if (!line) return;
@@ -1400,7 +1416,7 @@ export default function App() {
           .filter((item): item is { node: GraphNode; label: HTMLButtonElement } => !!item.node && !!item.label)
           .map((item) => {
             const { x = 0, y = 0, z = 0 } = item.node;
-            const ahead = -(m[2] * x + m[6] * y + m[10] * z + m[14]);
+            const ahead = depthAhead(m, x, y, z);
             return { ...item, ahead, at: fg.graph2ScreenCoords(x, y, z) };
           })
           .sort((a, b) => a.at.y - b.at.y);

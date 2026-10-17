@@ -14,7 +14,6 @@ Le frasi mostrate non vengono mai riscritte dall'IA: sono attribuite a un
 autore, quindi devono essere parole sue.
 """
 
-import hashlib
 import json
 import re
 import unicodedata
