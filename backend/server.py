@@ -66,7 +66,6 @@ def _health() -> dict:
         "ollama": {"indirizzo": config.OLLAMA_HOST},
     }
     try:
-        db_local.init_db()
         status["entry_con_vettore"] = len(db_local.get_entry_embeddings())
         status["testi_letti"] = len(db_local.get_sources())
         status["passi_in_biblioteca"] = db_local.get_passages_signature()[0]

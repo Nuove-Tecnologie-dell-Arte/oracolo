@@ -2,7 +2,7 @@ import json
 
 import requests
 
-from backend import config, db_local
+from backend import config, db_local, ollama
 from backend.logging_utils import get_logger
 from backend.progress import advance, new_bar
 
@@ -71,18 +71,7 @@ def _extract_noise_score(parsed) -> float:
 def _ask_ollama_for_tags(text: str) -> tuple[list[str], float]:
     """Tag (fino a MAX_TAGS_PER_ENTRY) e punteggio di rumore per un testo."""
     prompt = TAG_PROMPT.format(text=text, max_tags=config.MAX_TAGS_PER_ENTRY)
-    response = requests.post(
-        f"{config.OLLAMA_HOST}/api/generate",
-        json={
-            "model": config.OLLAMA_TAG_MODEL,
-            "prompt": prompt,
-            "stream": False,
-            "format": "json",
-        },
-        timeout=config.OLLAMA_TIMEOUT_SECONDS,
-    )
-    response.raise_for_status()
-    raw = response.json()["response"]
+    raw = ollama.generate(prompt, json_format=True)
     try:
         parsed = json.loads(raw)
     except json.JSONDecodeError:

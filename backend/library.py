@@ -607,7 +607,7 @@ def ingest_all(stars: int | None = None) -> list[dict]:
     # prima di calcolare i temi, per non lasciarvi dentro i loro vecchi tag.
     for job in jobs:
         db_local.delete_source(job["key"])
-    people = [e for e in db_local.get_entries_with_tags() if e["tags"]]
+    people = db_local.get_tagged_entries()
     embeddings.ensure_entry_embeddings(people)
     index = themes.ThemeIndex()
     for job in jobs:

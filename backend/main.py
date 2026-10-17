@@ -25,7 +25,7 @@ def do_tag(args: argparse.Namespace) -> None:
 
 
 def do_embed() -> None:
-    entries = [e for e in db_local.get_entries_with_tags() if e["tags"]]
+    entries = db_local.get_tagged_entries()
     n = embeddings.ensure_entry_embeddings(entries)
     print(f"[embed] {n} entry preparate per l'Oracolo (vettori di similarita')")
 

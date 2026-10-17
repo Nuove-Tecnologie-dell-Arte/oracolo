@@ -1,4 +1,5 @@
 import sqlite3
+from collections import defaultdict
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -219,7 +220,6 @@ def get_entries_by_noise_score(category: str | None, min_score: float) -> list[d
     pulsante "rumore di fondo" del frontend, la cui soglia e' regolabile.
     Le entry non ancora (ri)taggate con questo campo (noise_score NULL)
     contano come 0, quindi non compaiono mai finche' non viene retaggata."""
-    init_db()
     with get_connection() as conn:
         query = "SELECT id, text FROM entries WHERE COALESCE(noise_score, 0) >= ?"
         params: list = [min_score]
@@ -233,40 +233,42 @@ def get_entries_with_tags(category: str | None = None) -> list[dict]:
     """Tutte le entry con i loro tag. Per le citazioni tratte da un testo,
     `source` ne riporta titolo e autore; per i pensieri delle persone e' None.
     Con `category` filtra per 'stampante' | 'tesi' | 'interviste' | 'libro'."""
-    init_db()
     with get_connection() as conn:
         query = (
             "SELECT e.id, e.text, e.likes, s.title AS source_title, s.author AS source_author "
             "FROM entries e LEFT JOIN sources s ON s.id = e.source_id"
         )
-        if category is None:
-            entries = conn.execute(query).fetchall()
-        else:
-            entries = conn.execute(query + " WHERE e.category = ?", (category,)).fetchall()
-        result = []
-        for entry in entries:
-            tag_rows = conn.execute(
-                """
-                SELECT t.name FROM tags t
-                JOIN entry_tags et ON et.tag_id = t.id
-                WHERE et.entry_id = ?
-                """,
-                (entry["id"],),
-            ).fetchall()
-            result.append(
-                {
-                    "id": entry["id"],
-                    "text": entry["text"],
-                    "likes": entry["likes"],
-                    "tags": [t["name"] for t in tag_rows],
-                    "source": (
-                        {"title": entry["source_title"], "author": entry["source_author"]}
-                        if entry["source_title"]
-                        else None
-                    ),
-                }
-            )
-        return result
+        params: tuple = ()
+        if category is not None:
+            query += " WHERE e.category = ?"
+            params = (category,)
+        entries = conn.execute(query, params).fetchall()
+
+        tags_by_entry: dict[int, list[str]] = defaultdict(list)
+        for row in conn.execute(
+            "SELECT et.entry_id, t.name FROM entry_tags et JOIN tags t ON t.id = et.tag_id"
+        ):
+            tags_by_entry[row["entry_id"]].append(row["name"])
+
+        return [
+            {
+                "id": entry["id"],
+                "text": entry["text"],
+                "likes": entry["likes"],
+                "tags": tags_by_entry[entry["id"]],
+                "source": (
+                    {"title": entry["source_title"], "author": entry["source_author"]}
+                    if entry["source_title"]
+                    else None
+                ),
+            }
+            for entry in entries
+        ]
+
+
+def get_tagged_entries(category: str | None = None) -> list[dict]:
+    """Come get_entries_with_tags, ma solo le entry che hanno almeno un tag."""
+    return [entry for entry in get_entries_with_tags(category) if entry["tags"]]
 
 
 def get_entry_embeddings() -> list[sqlite3.Row]:

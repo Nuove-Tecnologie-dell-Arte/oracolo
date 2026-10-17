@@ -18,6 +18,24 @@ log = get_logger(__name__)
 RETRY_PAUSES = (2, 5, 15)
 
 
+def generate(prompt: str, temperature: float | None = None, json_format: bool = False) -> str:
+    """Testo generato da Ollama per `prompt` (con `json_format` obbliga il
+    modello a rispondere in JSON). Un solo tentativo: serve a chi risponde a
+    una richiesta in corso, che non puo' aspettare i tentativi di `post`."""
+    payload: dict = {"model": config.OLLAMA_TAG_MODEL, "prompt": prompt, "stream": False}
+    if json_format:
+        payload["format"] = "json"
+    if temperature is not None:
+        payload["options"] = {"temperature": temperature}
+    response = requests.post(
+        f"{config.OLLAMA_HOST}/api/generate",
+        json=payload,
+        timeout=config.OLLAMA_TIMEOUT_SECONDS,
+    )
+    response.raise_for_status()
+    return response.json()["response"]
+
+
 def post(endpoint: str, payload: dict) -> dict:
     """POST a Ollama (es. "/api/embed"); ritorna la risposta JSON. Riprova
     se la connessione cade, scade il tempo o Ollama risponde con un errore

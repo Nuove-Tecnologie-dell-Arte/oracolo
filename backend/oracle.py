@@ -27,7 +27,7 @@ from collections import Counter, defaultdict
 
 import requests
 
-from backend import config, db_local, embeddings, library
+from backend import db_local, embeddings, library, ollama
 from backend.logging_utils import get_logger
 
 log = get_logger(__name__)
@@ -150,18 +150,7 @@ _FIRST_PERSON = re.compile(r"\b(io|mio|mia|miei|mie|mi|noi|nostr[oaie])\b", re.I
 
 
 def _generate(prompt: str, temperature: float) -> str:
-    response = requests.post(
-        f"{config.OLLAMA_HOST}/api/generate",
-        json={
-            "model": config.OLLAMA_TAG_MODEL,
-            "prompt": prompt,
-            "stream": False,
-            "options": {"temperature": temperature},
-        },
-        timeout=config.OLLAMA_TIMEOUT_SECONDS,
-    )
-    response.raise_for_status()
-    return _clean(response.json()["response"])
+    return _clean(ollama.generate(prompt, temperature))
 
 
 def _clean(text: str) -> str:
@@ -174,10 +163,6 @@ def _clean(text: str) -> str:
 
 def _thoughts(entries: list[dict]) -> str:
     return "\n".join(f"- {e['text']}" for e in entries)
-
-
-def _tagged_entries() -> list[dict]:
-    return [e for e in db_local.get_entries_with_tags() if e["tags"]]
 
 
 def _view(entry: dict) -> dict:
@@ -266,7 +251,7 @@ def answer(question: str | None, tag: str | None = None) -> dict:
     """Testo oracolare. Con una domanda: la risposta, ispirata ai pensieri
     piu' vicini (solo quelli della stella `tag`, se indicata). Senza
     domanda: una sentenza sul tema della stella `tag`."""
-    entries = _tagged_entries()
+    entries = db_local.get_tagged_entries()
     if tag:
         entries = [e for e in entries if tag in e["tags"]] or entries
     if not entries:
@@ -318,24 +303,14 @@ def _generate_suggestions(entries: list[dict]) -> list[str]:
     tags = sorted({tag for e in entries for tag in e["tags"]})
     pool: list[str] = []
     for _ in range(3):
-        response = requests.post(
-            f"{config.OLLAMA_HOST}/api/generate",
-            json={
-                "model": config.OLLAMA_TAG_MODEL,
-                "prompt": SUGGESTIONS_PROMPT.format(
-                    tags=", ".join(random.sample(tags, min(40, len(tags)))),
-                    samples=_thoughts(random.sample(entries, min(16, len(entries)))),
-                    count=SUGGESTIONS_POOL,
-                ),
-                "stream": False,
-                "format": "json",
-                "options": {"temperature": 0.9},
-            },
-            timeout=config.OLLAMA_TIMEOUT_SECONDS,
+        prompt = SUGGESTIONS_PROMPT.format(
+            tags=", ".join(random.sample(tags, min(40, len(tags)))),
+            samples=_thoughts(random.sample(entries, min(16, len(entries)))),
+            count=SUGGESTIONS_POOL,
         )
-        response.raise_for_status()
+        raw = ollama.generate(prompt, 0.9, json_format=True)
         try:
-            _usable_suggestions(json.loads(response.json()["response"]), pool)
+            _usable_suggestions(json.loads(raw), pool)
         except ValueError:
             pass
         if len(pool) >= SUGGESTIONS_ENOUGH:
@@ -348,7 +323,7 @@ def suggestions() -> list[str]:
     generate da Ollama a partire dai temi e riusate per qualche minuto; se
     Ollama non risponde si propongono quelle di riserva."""
     if time.time() - _suggestions["at"] > SUGGESTIONS_TTL or not _suggestions["pool"]:
-        entries = _tagged_entries()
+        entries = db_local.get_tagged_entries()
         try:
             pool = _generate_suggestions(entries) if entries else []
         except (requests.RequestException, KeyError) as error:
@@ -374,7 +349,7 @@ def suggestions() -> list[str]:
 def ask(question: str) -> dict | None:
     """Indirizza la domanda a una stella e risponde. None se la nebulosa e'
     vuota (nessuna entry taggata)."""
-    entries = _tagged_entries()
+    entries = db_local.get_tagged_entries()
     if not entries:
         log.warning("Nessuna entry taggata: l'Oracolo non ha stelle a cui indirizzare")
         return None
@@ -415,7 +390,7 @@ def star_question(tag: str, asked: str | None = None) -> str | None:
     saprebbe rispondere. Con `asked` (la domanda che lo ha portato sulla
     stella dove si trova) la nuova domanda ne e' il passo successivo.
     None se la stella non esiste."""
-    entries = [e for e in _tagged_entries() if tag in e["tags"]]
+    entries = [e for e in db_local.get_tagged_entries() if tag in e["tags"]]
     if not entries:
         return None
     sample = random.sample(entries, min(5, len(entries)))
