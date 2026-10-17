@@ -17,12 +17,12 @@ import json
 import math
 import os
 import re
-import unicodedata
 from array import array
 from difflib import get_close_matches
 
 from backend import config, db_local, embeddings, ollama
 from backend.logging_utils import get_logger
+from backend.textutil import plain
 
 log = get_logger(__name__)
 
@@ -187,23 +187,18 @@ def _picked(text: str, near: list[tuple[float, str]]) -> list[str]:
     return picks[:MAX_PICKS]
 
 
-def _plain(word: str) -> str:
-    """La parola senza accenti: "citta'" e "città" sono lo stesso tema."""
-    return "".join(ch for ch in unicodedata.normalize("NFD", word) if not unicodedata.combining(ch))
-
-
 def _existing(word: str, names: list[str]) -> str:
     """Il tema gia' presente che e' la stessa parola scritta in un altro modo
     (con o senza accento, al plurale, con un'altra desinenza: memoria e
     memorie, sciamano e sciamanesimo), se c'e'; altrimenti la parola stessa."""
-    plain = {_plain(name): name for name in names}
-    key = _plain(word)
-    if key in plain:
-        return plain[key]
-    close = get_close_matches(key, list(plain), n=1, cutoff=0.85)
+    by_plain = {plain(name): name for name in names}
+    key = plain(word)
+    if key in by_plain:
+        return by_plain[key]
+    close = get_close_matches(key, list(by_plain), n=1, cutoff=0.85)
     if close:
-        return plain[close[0]]
-    for other, name in plain.items():
+        return by_plain[close[0]]
+    for other, name in by_plain.items():
         shared = len(os.path.commonprefix([key, other]))
         if shared >= max(5, 0.8 * min(len(key), len(other))):
             return name

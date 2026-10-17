@@ -7,8 +7,6 @@
 - `answer`: testo oracolare di una stella: la risposta alla domanda del
   visitatore vista da quella stella, oppure, senza domanda, una sentenza sul
   suo tema.
-- `question_for_tag`: una domanda che l'Oracolo fa al visitatore fermo su
-  una stella.
 - `star_question`: una domanda che rappresenta una stella, da mostrarle
   accanto: chi la sceglie viaggia fin li' e la stella gli risponde.
 
@@ -24,12 +22,12 @@ import math
 import random
 import re
 import time
-import unicodedata
 from collections import Counter, defaultdict
 
 import requests
 
-from backend import config, db_local, embeddings, library
+from backend import db_local, embeddings, library, ollama
+from backend.textutil import plain
 from backend.logging_utils import get_logger
 
 log = get_logger(__name__)
@@ -121,30 +119,6 @@ SUGGESTIONS_SHOWN = 4
 SUGGESTIONS_TTL = 600
 _suggestions: dict = {"at": 0.0, "pool": []}
 
-QUESTION_PROMPT = """Sei l'Oracolo di una nebulosa fatta dei pensieri anonimi di tante persone. \
-Chi ti visita si è fermato sulla stella "{tag}"{path}.
-
-Pensieri raccolti in questa stella (ti servono solo per capire il tema: non \
-parlare a nome di chi li ha scritti):
-{thoughts}
-
-Fai al visitatore UNA domanda sulla SUA vita. Regole:
-- in italiano, al massimo 14 parole, una sola frase che finisce con il punto di domanda;
-- parla solo di lui, dandogli del tu: mai "io", "mio", "mia", "mi", "noi", "nostro";
-- parti da qualcosa di concreto (un oggetto, un luogo, un gesto, una persona), non da un concetto;
-- non usare la parola "{tag}";
-- non iniziare con "Ricordi", "Cosa significa" o "Come puoi".
-
-Esempi del tono, su altri temi (non copiarli):
-- Di chi è la voce che senti quando la casa è vuota?
-- Da quanto tempo non apri quel cassetto?
-- Chi ti aspettava alla fermata, quel giorno?
-- Dove hai nascosto la lettera che non hai spedito?
-
-Scrivi solo la domanda."""
-
-FALLBACK_QUESTION = "Che cosa ti ha portato fin qui?"
-
 # Domanda che rappresenta una stella: chi visita la vede accanto alla stella
 # e, scegliendola, viaggia fin li' e la stella gli risponde. Viene scritta di
 # nuovo a ogni visita, quindi una stella non ha mai le stesse domande.
@@ -176,18 +150,7 @@ _FIRST_PERSON = re.compile(r"\b(io|mio|mia|miei|mie|mi|noi|nostr[oaie])\b", re.I
 
 
 def _generate(prompt: str, temperature: float) -> str:
-    response = requests.post(
-        f"{config.OLLAMA_HOST}/api/generate",
-        json={
-            "model": config.OLLAMA_TAG_MODEL,
-            "prompt": prompt,
-            "stream": False,
-            "options": {"temperature": temperature},
-        },
-        timeout=config.OLLAMA_TIMEOUT_SECONDS,
-    )
-    response.raise_for_status()
-    return _clean(response.json()["response"])
+    return _clean(ollama.generate(prompt, temperature))
 
 
 def _clean(text: str) -> str:
@@ -200,10 +163,6 @@ def _clean(text: str) -> str:
 
 def _thoughts(entries: list[dict]) -> str:
     return "\n".join(f"- {e['text']}" for e in entries)
-
-
-def _tagged_entries() -> list[dict]:
-    return [e for e in db_local.get_entries_with_tags() if e["tags"]]
 
 
 def _view(entry: dict) -> dict:
@@ -292,7 +251,7 @@ def answer(question: str | None, tag: str | None = None) -> dict:
     """Testo oracolare. Con una domanda: la risposta, ispirata ai pensieri
     piu' vicini (solo quelli della stella `tag`, se indicata). Senza
     domanda: una sentenza sul tema della stella `tag`."""
-    entries = _tagged_entries()
+    entries = db_local.get_tagged_entries()
     if tag:
         entries = [e for e in entries if tag in e["tags"]] or entries
     if not entries:
@@ -344,24 +303,14 @@ def _generate_suggestions(entries: list[dict]) -> list[str]:
     tags = sorted({tag for e in entries for tag in e["tags"]})
     pool: list[str] = []
     for _ in range(3):
-        response = requests.post(
-            f"{config.OLLAMA_HOST}/api/generate",
-            json={
-                "model": config.OLLAMA_TAG_MODEL,
-                "prompt": SUGGESTIONS_PROMPT.format(
-                    tags=", ".join(random.sample(tags, min(40, len(tags)))),
-                    samples=_thoughts(random.sample(entries, min(16, len(entries)))),
-                    count=SUGGESTIONS_POOL,
-                ),
-                "stream": False,
-                "format": "json",
-                "options": {"temperature": 0.9},
-            },
-            timeout=config.OLLAMA_TIMEOUT_SECONDS,
+        prompt = SUGGESTIONS_PROMPT.format(
+            tags=", ".join(random.sample(tags, min(40, len(tags)))),
+            samples=_thoughts(random.sample(entries, min(16, len(entries)))),
+            count=SUGGESTIONS_POOL,
         )
-        response.raise_for_status()
+        raw = ollama.generate(prompt, 0.9, json_format=True)
         try:
-            _usable_suggestions(json.loads(response.json()["response"]), pool)
+            _usable_suggestions(json.loads(raw), pool)
         except ValueError:
             pass
         if len(pool) >= SUGGESTIONS_ENOUGH:
@@ -374,7 +323,7 @@ def suggestions() -> list[str]:
     generate da Ollama a partire dai temi e riusate per qualche minuto; se
     Ollama non risponde si propongono quelle di riserva."""
     if time.time() - _suggestions["at"] > SUGGESTIONS_TTL or not _suggestions["pool"]:
-        entries = _tagged_entries()
+        entries = db_local.get_tagged_entries()
         try:
             pool = _generate_suggestions(entries) if entries else []
         except (requests.RequestException, KeyError) as error:
@@ -400,7 +349,7 @@ def suggestions() -> list[str]:
 def ask(question: str) -> dict | None:
     """Indirizza la domanda a una stella e risponde. None se la nebulosa e'
     vuota (nessuna entry taggata)."""
-    entries = _tagged_entries()
+    entries = db_local.get_tagged_entries()
     if not entries:
         log.warning("Nessuna entry taggata: l'Oracolo non ha stelle a cui indirizzare")
         return None
@@ -429,50 +378,12 @@ def ask(question: str) -> dict | None:
     }
 
 
-def _acceptable(question: str, tag: str) -> bool:
-    words = question.split()
-    return (
-        question.endswith("?")
-        and 3 <= len(words) <= 20
-        and question.count("?") == 1
-        and tag.lower() not in question.lower()
-        and not _FIRST_PERSON.search(question)
-    )
-
-
-def question_for_tag(tag: str, trail: list[str] | None = None) -> str | None:
-    """Una domanda dell'Oracolo a chi si e' fermato sulla stella `tag`,
-    dopo essere passato da `trail`. None se la stella non esiste."""
-    entries = [e for e in _tagged_entries() if tag in e["tags"]]
-    if not entries:
-        return None
-    sample = random.sample(entries, min(7, len(entries)))
-    before = [t for t in (trail or []) if t != tag][-4:]
-    path = f", dopo essere passato da: {', '.join(before)}" if before else ""
-    prompt = QUESTION_PROMPT.format(tag=tag, path=path, thoughts=_thoughts(sample))
-
-    for attempt in range(QUESTION_ATTEMPTS):
-        question = _generate(prompt, 0.9)
-        if _acceptable(question, tag):
-            return question
-        log.debug("Domanda scartata (tentativo %d): %r", attempt + 1, question)
-    log.warning("Nessuna domanda accettabile per la stella '%s'", tag)
-    return FALLBACK_QUESTION
-
-
-def _plain(text: str) -> str:
-    """Minuscolo e senza accenti: "liberta" e "libertà" sono la stessa parola."""
-    return "".join(
-        ch for ch in unicodedata.normalize("NFD", text.lower()) if not unicodedata.combining(ch)
-    )
-
-
 def star_question(tag: str, asked: str | None = None) -> str | None:
     """Una domanda che chi visita potrebbe fare e a cui la stella `tag`
     saprebbe rispondere. Con `asked` (la domanda che lo ha portato sulla
     stella dove si trova) la nuova domanda ne e' il passo successivo.
     None se la stella non esiste."""
-    entries = [e for e in _tagged_entries() if tag in e["tags"]]
+    entries = [e for e in db_local.get_tagged_entries() if tag in e["tags"]]
     if not entries:
         return None
     sample = random.sample(entries, min(5, len(entries)))
@@ -492,7 +403,7 @@ def star_question(tag: str, asked: str | None = None) -> str | None:
         if not question.endswith("?") or question.count("?") != 1 or len(words) > STAR_QUESTION_WORDS:
             log.debug("Domanda della stella scartata (tentativo %d): %r", attempt + 1, question)
             continue
-        if _plain(tag) not in _plain(question):
+        if plain(tag) not in plain(question):
             return question
         fallback = fallback or question  # nomina il tema: va bene se non c'e' di meglio
     if fallback is None:

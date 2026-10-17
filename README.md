@@ -283,12 +283,11 @@ lunghi una riga. Si procede invece così:
 - **`answer(question, tag)`**: la stessa risposta ma vista da una stella
   precisa (filtra le entry su quel tag); senza domanda, una "sentenza" sul
   tema della stella (`VOICE_PROMPT`).
-- **`question_for_tag`** / **`star_question`**: generano domande (non
-  risposte) — la prima è ciò che l'Oracolo chiede al visitatore fermo su una
-  stella, la seconda è una domanda-civetta mostrata accanto a una stella, che
-  porta lì chi la sceglie. Entrambe ritentano fino a `QUESTION_ATTEMPTS`
-  volte se il modello non rispetta le regole di forma (una sola frase,
-  niente prima persona, non nomina il tema, lunghezza).
+- **`star_question`**: genera una domanda (non una risposta): una
+  domanda-civetta mostrata accanto a una stella, che porta lì chi la sceglie.
+  Ritenta fino a `QUESTION_ATTEMPTS` volte se il modello non rispetta le
+  regole di forma (una sola frase, niente prima persona, non nomina il tema,
+  lunghezza).
 - **`suggestions()`**: pool di domande generate da Ollama, cache in memoria
   per `SUGGESTIONS_TTL` (10 minuti); se Ollama non risponde, usa
   `FALLBACK_SUGGESTIONS` e riprova dopo un minuto (non ad ogni richiesta).
@@ -319,7 +318,6 @@ di chiudere la connessione.
 | GET | `/api/noise?category=<...>&min_score=<0-1>` | entry col punteggio di rumore (vedi `backend/tagging.py`) almeno `min_score` (default 0.5): alimenta i nodi-messaggio del pulsante dedicato nell'header, la cui soglia si regola con +/- |
 | GET | `/api/questions` | domande evocative generate al volo (`question.html`) |
 | GET | `/api/suggestions` | domande da proporre a chi entra |
-| GET | `/api/oracle/question?tag=<nome>&trail=<tag,precedenti>` | domanda che l'Oracolo fa a chi si ferma su una stella |
 | GET | `/api/oracle/star-question?tag=<nome>&asked=<domanda precedente>` | domanda-civetta che rappresenta una stella (diversa ogni volta) |
 | GET | `/api/health` | stato del server, di Ollama (modelli presenti/mancanti) e della biblioteca |
 | POST | `/api/ask` `{"question"}` | domanda del visitatore: stella di destinazione, path, risposta, pensieri e citazioni |

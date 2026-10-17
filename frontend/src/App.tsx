@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ForceGraph3D from 'react-force-graph-3d';
-import { CircleHelp, Sparkles, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import {
   askOracle,
   fetchFigure,
@@ -16,6 +16,23 @@ import {
   type TagGraph,
 } from '@/lib/api';
 import TagDetailPanel, { type AskedQuestion, type OracleState } from '@/components/TagDetailPanel';
+import TopBar from '@/components/TopBar';
+import InfoPanel from '@/components/InfoPanel';
+import SearchBar from '@/components/SearchBar';
+import AboutOverlay from '@/components/AboutOverlay';
+import { categoryFromUrl } from '@/categories';
+import {
+  endpoints,
+  evenPath,
+  hash01,
+  depthAhead,
+  importanceColor,
+  pairKey,
+  reducedMotion,
+  shaded,
+  smoother,
+  type Vec3,
+} from '@/sceneMath';
 import { SHAPE_KEYS, getConstellation, placeFigure, type Anchor, type Constellation, type ShapeId } from './constellation';
 import { FIGURES, type FigureId } from './figures';
 
@@ -100,50 +117,6 @@ const OVERVIEW_DISTANCE = 170;
 // Durata dell'allontanamento della camera quando si chiude la scheda.
 const ZOOM_OUT_MS = 1400;
 
-// Colore delle stelle per importanza (0 = tag con una sola frase, 1 = il tag
-// piu' usato): da fredde a calde. Le fredde hanno un colore diverso ma
-// vivo, non spento: sono la maggior parte della nebulosa e devono contare
-// anche loro.
-const IMPORTANCE_STOPS: [number, [number, number, number]][] = [
-  [0, [138, 126, 255]],
-  [0.3, [190, 164, 255]],
-  [0.55, [242, 216, 224]],
-  [0.78, [255, 214, 150]],
-  [1, [255, 176, 84]],
-];
-// Luminosita' delle stelle meno importanti rispetto alle piu' importanti:
-// appena piu' tenui, quanto basta a dare profondita'.
-const FAINTEST_STAR = 0.86;
-
-// Numero stabile tra 0 e 1 ricavato da un testo: da' a ogni stella una
-// sfumatura e un ritmo suoi, uguali a ogni caricamento.
-function hash01(text: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
-  return ((h >>> 0) % 100000) / 100000;
-}
-
-// Il colore dato, con una lieve sfumatura diversa per ogni stella: nessuna
-// e' identica a un'altra (e il grafo da' a ognuna il suo materiale, cosi' lo
-// scintillio di una non trascina le altre).
-function shaded(rgb: number[], id: string, alpha = 1): string {
-  const [r, g, b] = rgb.map((v, channel) => {
-    const shade = (hash01(`${id}:${channel}`) - 0.5) * 14;
-    return Math.round(Math.min(255, Math.max(0, v + shade)));
-  });
-  return `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`;
-}
-
-function importanceColor(importance: number, id: string): string {
-  const t = Math.min(1, Math.max(0, importance));
-  let i = 1;
-  while (i < IMPORTANCE_STOPS.length - 1 && t > IMPORTANCE_STOPS[i][0]) i++;
-  const [t0, c0] = IMPORTANCE_STOPS[i - 1];
-  const [t1, c1] = IMPORTANCE_STOPS[i];
-  const k = (t - t0) / (t1 - t0);
-  return shaded(c0.map((v, channel) => v + (c1[channel] - v) * k), id, FAINTEST_STAR + (1 - FAINTEST_STAR) * t);
-}
-
 // Durata del volo verso una stella aperta con un click.
 const FLY_MS = 1400;
 // Viaggio verso una stella: dura TRAVEL_BASE_MS piu' TRAVEL_MS_PER_UNIT per
@@ -201,8 +174,6 @@ const FIGURE_COLOR = '#ffe2a8';
 const PULSE_PERIOD = 2.6;
 const PULSE_SWELL = 0.16;
 
-type Vec3 = [number, number, number];
-
 // Domanda che rappresenta una stella vicina a quella aperta.
 type StarQuestion = { tag: string; text: string };
 
@@ -220,65 +191,6 @@ type JourneyFigure = {
   // frase della rivelazione (null finche' l'Oracolo non l'ha scritta)
   text: string | null;
 };
-
-// Punto a frazione `u` (0-1) della curva morbida che passa per `points`
-// (Catmull-Rom uniforme).
-function alongPath(points: Vec3[], u: number): Vec3 {
-  const last = points.length - 1;
-  const scaled = Math.min(0.999999, Math.max(0, u)) * last;
-  const i = Math.floor(scaled);
-  const t = scaled - i;
-  const p0 = points[Math.max(0, i - 1)];
-  const p1 = points[i];
-  const p2 = points[i + 1];
-  const p3 = points[Math.min(last, i + 2)];
-  return [0, 1, 2].map((axis) => 0.5 * (
-    2 * p1[axis]
-    + (p2[axis] - p0[axis]) * t
-    + (2 * p0[axis] - 5 * p1[axis] + 4 * p2[axis] - p3[axis]) * t * t
-    + (3 * p1[axis] - p0[axis] - 3 * p2[axis] + p3[axis]) * t * t * t
-  )) as Vec3;
-}
-
-// La stessa curva, ma con `u` = parte della lunghezza gia' percorsa: con
-// alongPath ogni tratto dura uguale, corto o lungo che sia, e la camera
-// cambierebbe velocita' di colpo a ogni stella.
-function evenPath(points: Vec3[], samples = 240): { at: (u: number) => Vec3; length: number } {
-  const marks: Vec3[] = [];
-  const lengths: number[] = [];
-  for (let i = 0; i <= samples; i++) {
-    const p = alongPath(points, i / samples);
-    const q = marks[i - 1];
-    lengths.push(q ? lengths[i - 1] + Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) : 0);
-    marks.push(p);
-  }
-  const total = lengths[samples] || 1;
-  const at = (u: number): Vec3 => {
-    const goal = Math.min(1, Math.max(0, u)) * total;
-    let lo = 0;
-    let hi = samples;
-    while (hi - lo > 1) {
-      const mid = (lo + hi) >> 1;
-      if (lengths[mid] <= goal) lo = mid; else hi = mid;
-    }
-    const k = (goal - lengths[lo]) / (lengths[hi] - lengths[lo] || 1);
-    const a = marks[lo];
-    const b = marks[hi];
-    return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
-  };
-  return { at, length: lengths[samples] };
-}
-
-// Chi ha chiesto al sistema meno animazioni salta i movimenti di camera.
-function reducedMotion(): boolean {
-  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-}
-
-// Da 0 a 1 partendo e arrivando con dolcezza (accelerazione nulla agli estremi).
-function smoother(t: number): number {
-  const x = Math.min(1, Math.max(0, t));
-  return x * x * x * (x * (6 * x - 15) + 10);
-}
 
 // Raggio (nelle unita' del grafo) della luce soffusa attorno alla stella
 // aperta: circa quattro volte il raggio della stella.
@@ -299,6 +211,23 @@ const TRAIL_COLOR = '#5fe0ff';
 const TRAIL_LINK_COLOR = 'rgba(95, 224, 255, 0.9)';
 
 const emptyGraph: TagGraph = { nodes: [], links: [] };
+
+// Battito (0-1) della stella aperta e del suo alone all'istante `now` (ms).
+const heartbeat = (now: number) => 0.5 + 0.5 * Math.sin((now / 1000) * ((2 * Math.PI) / PULSE_PERIOD));
+
+// Stelle (tag) che occupano davvero un posto della figura.
+const filledSeats = (stars: (string | null)[]) => stars.filter((tag): tag is string => tag !== null);
+
+// Rimette una stella libera nella simulazione, dopo che una figura la teneva ferma.
+const releaseNode = (node: GraphNode) => {
+  node.fx = undefined;
+  node.fy = undefined;
+  node.fz = undefined;
+};
+
+// Mira di OrbitControls (punto guardato dalla camera), se i controlli ci sono.
+const controlsTarget = (fg: ForceGraphHandle) =>
+  (fg.controls() as { target?: { x: number; y: number; z: number } } | undefined)?.target;
 
 type ForceGraphHandle = {
   cameraPosition: (pos: { x?: number; y?: number; z?: number }, lookAt?: { x: number; y: number; z: number }, ms?: number) => void;
@@ -327,40 +256,20 @@ type OrbitSettings = {
   maxDistance: number;
 };
 
-const endpoints = (link: GraphLink): [string, string] => [
-  typeof link.source === 'string' ? link.source : link.source.id,
-  typeof link.target === 'string' ? link.target : link.target.id,
-];
-
-// Chiave di un collegamento, uguale nei due versi.
-const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
-
-// Lente da cui guardare la nebulosa, scelta nell'header: cambiarla ricarica
-// la pagina (il viaggio/figure in corso ripartono da capo con il nuovo
-// insieme di stelle), persistita in ?category= cosi' il link resta condiviso.
-const CATEGORY_OPTIONS: { value: Category; label: string }[] = [
-  { value: 'tutti', label: 'Tutti' },
-  { value: 'tesi', label: 'Tesi' },
-  { value: 'interviste', label: 'Interviste' },
-  { value: 'stampante', label: 'Stampante' },
-];
-
-function categoryFromUrl(): Category {
-  const value = new URLSearchParams(window.location.search).get('category');
-  return CATEGORY_OPTIONS.some((opt) => opt.value === value) ? (value as Category) : 'tutti';
-}
-
 // Pulsante "rumore di fondo": accende/spegne un nodo per ogni entry con
 // punteggio di rumore (assegnato da Ollama in fase di tag, vedi
 // backend/tagging.py) almeno pari alla soglia, regolabile con +/-.
 const NOISE_THRESHOLD_DEFAULT = 0.5;
-const NOISE_THRESHOLD_STEP = 0.1;
 // Lunghezza del testo mostrato come etichetta di un nodo-messaggio.
 const NOISE_LABEL_LENGTH = 80;
 // Raggio (nelle unita' del grafo) attorno alla stella scelta a caso in cui
 // nasce ogni nodo-messaggio (vedi noiseNodes): si mescolano cosi' alle
 // stelle esistenti invece di restare un gruppo isolato per conto proprio.
 const NOISE_SPREAD = 20;
+
+// Stella a cui si lega il nodo-messaggio di `entry`, scelta in base al suo id.
+const noiseAnchor = (nodes: GraphNode[], entry: NoiseEntry) =>
+  nodes[Math.floor(hash01(`rumore:${entry.id}`) * nodes.length) % nodes.length];
 
 export default function App() {
   const [category] = useState<Category>(categoryFromUrl);
@@ -505,7 +414,7 @@ export default function App() {
   const noiseNodes = useMemo<GraphNode[]>(() => {
     if (!noiseVisible || !nodes.length) return [];
     return noiseEntries.map((entry) => {
-      const anchor = nodes[Math.floor(hash01(`rumore:${entry.id}`) * nodes.length) % nodes.length];
+      const anchor = noiseAnchor(nodes, entry);
       const key = `rumore:${entry.id}`;
       return {
         id: `msg:${entry.id}`,
@@ -525,7 +434,7 @@ export default function App() {
   const noiseLinks = useMemo<GraphLink[]>(() => {
     if (!noiseVisible || !nodes.length) return [];
     return noiseEntries.map((entry) => {
-      const anchor = nodes[Math.floor(hash01(`rumore:${entry.id}`) * nodes.length) % nodes.length];
+      const anchor = noiseAnchor(nodes, entry);
       return { source: anchor.id, target: `msg:${entry.id}`, value: 1 };
     });
   }, [noiseVisible, noiseEntries, nodes]);
@@ -557,7 +466,7 @@ export default function App() {
   // cambiarne colore o grandezza di base.
   useEffect(() => {
     if (loading) return;
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    if (reducedMotion()) return;
     const rhythms = nodes.map((node) => ({
       node,
       speed: (2 * Math.PI) / (TWINKLE_PERIOD[0] + hash01(`${node.id}:ritmo`) * (TWINKLE_PERIOD[1] - TWINKLE_PERIOD[0])),
@@ -566,7 +475,7 @@ export default function App() {
     let frame = 0;
     const tick = (now: number) => {
       // Battito della stella aperta: e' viva, sta parlando.
-      const beat = 0.5 + 0.5 * Math.sin((now / 1000) * ((2 * Math.PI) / PULSE_PERIOD));
+      const beat = heartbeat(now);
       for (const { node, speed, phase } of rhythms) {
         const star = node.__threeObj;
         if (!star) continue;
@@ -607,14 +516,13 @@ export default function App() {
       if (fg && node.x != null && node.y != null && node.z != null) {
         const cam = fg.camera();
         // Distanza della stella davanti alla camera (negativa se e' dietro).
-        const m = cam.matrixWorldInverse.elements;
-        const ahead = -(m[2] * node.x + m[6] * node.y + m[10] * node.z + m[14]);
+        const ahead = depthAhead(cam.matrixWorldInverse.elements, node.x, node.y, node.z);
         if (ahead > 1) {
           const { x, y } = fg.graph2ScreenCoords(node.x, node.y, node.z);
           const viewHeight = glow.parentElement?.querySelector('canvas')?.clientHeight ?? window.innerHeight;
           const pxPerUnit = viewHeight / 2 / Math.tan((cam.fov * Math.PI) / 360) / ahead;
           // L'alone respira insieme al battito della stella.
-          const beat = 0.5 + 0.5 * Math.sin((now / 1000) * ((2 * Math.PI) / PULSE_PERIOD));
+          const beat = heartbeat(now);
           const size = GLOW_RADIUS * 2 * pxPerUnit * (1 + 0.22 * beat);
           glow.style.width = `${size}px`;
           glow.style.height = `${size}px`;
@@ -657,9 +565,7 @@ export default function App() {
       if (to) {
         flights.push({ node, from: [node.x ?? 0, node.y ?? 0, node.z ?? 0], to });
       } else {
-        node.fx = undefined;
-        node.fy = undefined;
-        node.fz = undefined;
+        releaseNode(node);
       }
     }
     fg?.d3ReheatSimulation();
@@ -916,8 +822,8 @@ export default function App() {
     }
   }, [constellation.view, flyToOverview]);
 
-  const selectSearchResult = (node: GraphNode) => {
-    selectTag(node.id);
+  const selectSearchResult = (match: { id: string }) => {
+    selectTag(match.id);
   };
 
   // Accende/spegne i nodi-messaggio di "rumore di fondo".
@@ -992,7 +898,7 @@ export default function App() {
   const startDrift = useCallback(() => {
     const fg = graphRef.current;
     if (!fg || reducedMotion()) return;
-    const target = (fg.controls() as { target?: { x: number; y: number; z: number } } | undefined)?.target;
+    const target = controlsTarget(fg);
     const aim = { x: target?.x ?? 0, y: target?.y ?? 0, z: target?.z ?? 0 };
     const cam = fg.camera().position;
     const off: Vec3 = [cam.x - aim.x, cam.y - aim.y, cam.z - aim.z];
@@ -1065,7 +971,7 @@ export default function App() {
     }
     points.push(arrival);
 
-    const aim = (fg.controls() as { target?: { x: number; y: number; z: number } } | undefined)?.target;
+    const aim = controlsTarget(fg);
     const lookFrom: Vec3 = aim ? [aim.x, aim.y, aim.z] : [0, 0, 0];
     const to: Vec3 = [end.lookAt.x, end.lookAt.y, end.lookAt.z];
     const mix = (a: Vec3, b: Vec3, k: number): Vec3 => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
@@ -1126,7 +1032,7 @@ export default function App() {
 
   // ── Figura del viaggio (vedi FIGURE_AFTER) ──
   useEffect(() => {
-    figureStars.current = new Set(figure?.stars.filter((tag): tag is string => tag !== null) ?? []);
+    figureStars.current = new Set(filledSeats(figure?.stars ?? []));
   }, [figure]);
 
   // Le `count` stelle da mandare nella figura: prima quelle attraversate
@@ -1163,7 +1069,7 @@ export default function App() {
   const growFigure = useCallback((current: JourneyFigure, asked: number): JourneyFigure => {
     const empty = current.stars.flatMap((tag, i) => (tag ? [] : [i]));
     const slots = empty.slice(0, Math.ceil(current.stars.length / FIGURE_STEPS));
-    const tags = figureCandidates(slots.length, new Set(current.stars.filter((t): t is string => t !== null)));
+    const tags = figureCandidates(slots.length, new Set(filledSeats(current.stars)));
     const stars = [...current.stars];
     slots.forEach((slot, i) => {
       if (tags[i]) stars[slot] = tags[i];
@@ -1263,11 +1169,7 @@ export default function App() {
   const endFigure = useCallback(() => {
     for (const tag of figureStars.current) {
       const node = nodeById.get(tag);
-      if (node) {
-        node.fx = undefined;
-        node.fy = undefined;
-        node.fz = undefined;
-      }
+      if (node) releaseNode(node);
     }
     figureStars.current = new Set();
     figureArrivals.current.clear();
@@ -1309,12 +1211,13 @@ export default function App() {
   }, [history, endFigure, flyToOverview, loadOracleText, selectTag]);
 
   // Tratti della figura (coppie di posti) e stelle che la formano.
+  const figureId = figure?.id;
   const figureSegments = useMemo(
-    () => (figure ? FIGURES[figure.id].chains.flatMap((chain) => chain.slice(1).map((b, i) => [chain[i], b] as const)) : []),
-    [figure?.id]
+    () => (figureId ? FIGURES[figureId].chains.flatMap((chain) => chain.slice(1).map((b, i) => [chain[i], b] as const)) : []),
+    [figureId]
   );
   const figureIds = useMemo(
-    () => new Set(figure?.stars.filter((tag): tag is string => tag !== null) ?? []),
+    () => new Set(filledSeats(figure?.stars ?? [])),
     [figure?.stars]
   );
 
@@ -1327,7 +1230,7 @@ export default function App() {
       const fg = graphRef.current;
       if (fg) {
         const m = fg.camera().matrixWorldInverse.elements;
-        const ahead = (n: GraphNode) => -(m[2] * (n.x ?? 0) + m[6] * (n.y ?? 0) + m[10] * (n.z ?? 0) + m[14]);
+        const ahead = (n: GraphNode) => depthAhead(m, n.x ?? 0, n.y ?? 0, n.z ?? 0);
         figureSegments.forEach(([a, b], i) => {
           const line = figureLines.current[i];
           if (!line) return;
@@ -1513,7 +1416,7 @@ export default function App() {
           .filter((item): item is { node: GraphNode; label: HTMLButtonElement } => !!item.node && !!item.label)
           .map((item) => {
             const { x = 0, y = 0, z = 0 } = item.node;
-            const ahead = -(m[2] * x + m[6] * y + m[10] * z + m[14]);
+            const ahead = depthAhead(m, x, y, z);
             return { ...item, ahead, at: fg.graph2ScreenCoords(x, y, z) };
           })
           .sort((a, b) => a.at.y - b.at.y);
@@ -1822,79 +1725,21 @@ export default function App() {
         )}
       </div>
 
-      <header className="topbar">
-        <div className="brand-lockup">
-          <div>
-            <p className="eyebrow">Oracolo</p>
-            <h1>LA NEBULOSA</h1>
-          </div>
-        </div>
-        <div className="header-center"><span className="status-dot" />Frammento <span className="header-divider" /> {graphData.nodes.length} tag condivisi</div>
-        <div className="header-actions">
-          <div className="category-switch" role="group" aria-label="Filtra la nebulosa per categoria">
-            {CATEGORY_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                className={`category-switch-btn${category === opt.value ? ' active' : ''}`}
-                onClick={() => {
-                  if (opt.value === category) return;
-                  const url = new URL(window.location.href);
-                  if (opt.value === 'tutti') url.searchParams.delete('category');
-                  else url.searchParams.set('category', opt.value);
-                  window.location.href = url.toString();
-                }}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-          <div className="noise-switch" role="group" aria-label="Rumore di fondo">
-            <button
-              type="button"
-              className={`category-switch-btn noise-switch-btn${noiseVisible ? ' active' : ''}`}
-              onClick={toggleNoise}
-              aria-pressed={noiseVisible}
-              title="Messaggi che Ollama considera rumore di fondo, sopra la soglia qui a fianco"
-            >
-              Rumore di fondo
-            </button>
-            <button
-              type="button"
-              className="noise-threshold-btn"
-              onClick={() => adjustNoiseThreshold(-NOISE_THRESHOLD_STEP)}
-              disabled={noiseThreshold <= 0}
-              aria-label="Soglia piu' permissiva"
-            >
-              −
-            </button>
-            <span className="noise-threshold-value">{Math.round(noiseThreshold * 100)}%</span>
-            <button
-              type="button"
-              className="noise-threshold-btn"
-              onClick={() => adjustNoiseThreshold(NOISE_THRESHOLD_STEP)}
-              disabled={noiseThreshold >= 1}
-              aria-label="Soglia piu' stringente"
-            >
-              +
-            </button>
-          </div>
-          <a className="help-button" href={`${import.meta.env.BASE_URL}question.html`} aria-label="L'oracolo"><Sparkles size={16} strokeWidth={1.5} /></a>
-          <button className="help-button" type="button" aria-label="Cos'è l'Oracolo" onClick={() => setShowAbout(true)}><CircleHelp size={17} strokeWidth={1.5} /></button>
-        </div>
-      </header>
+      <TopBar
+        tagCount={graphData.nodes.length}
+        category={category}
+        noiseVisible={noiseVisible}
+        noiseThreshold={noiseThreshold}
+        onToggleNoise={toggleNoise}
+        onAdjustNoiseThreshold={adjustNoiseThreshold}
+        onShowAbout={() => setShowAbout(true)}
+      />
 
-      {/* Si fa da parte durante il viaggio e mentre una stella e' aperta:
-          coprirebbe le stelle collegate. */}
-      <aside className={`side-panel left-panel${selectedId || traveling || revealing ? ' is-receded' : ''}`}>
-        <p className="field-title">Un archivio di <br /><em>memorie collettive.</em></p>
-        <p className="field-copy">Ogni tag nasce da un pensiero condiviso e si lega agli altri che ne condividono il tema. Esplora la nebulosa per scoprire come si intrecciano.</p>
-        <div className="rule" />
-        <div className="metric-grid">
-          <div><strong>{graphData.nodes.length}</strong><span>tag</span></div>
-          <div><strong>{graphData.links.length}</strong><span>connessioni</span></div>
-        </div>
-      </aside>
+      <InfoPanel
+        tagCount={graphData.nodes.length}
+        linkCount={graphData.links.length}
+        receded={!!(selectedId || traveling || revealing)}
+      />
 
       {suggestions.length > 0 && !selectedId && !busy && !shapeActive && !revealing && !searchTerm.trim() && (
         <div className="oracle-suggestions" aria-label="Domande suggerite">
@@ -1912,51 +1757,27 @@ export default function App() {
         </section>
       )}
 
-      <form
-        className={`oracle-input-wrap${busy ? ' is-asking' : ''}${inviting ? ' is-inviting' : ''}`}
+      <SearchBar
+        inputRef={askInputRef}
+        searchTerm={searchTerm}
+        onSearchTermChange={(value) => {
+          setSearchTerm(value);
+          setSearchResultsVisible(true);
+        }}
+        busy={busy}
+        inviting={inviting}
+        onFocus={() => {
+          setInviting(false);
+          setSearchResultsVisible(true);
+        }}
+        resultsVisible={searchResultsVisible}
+        onBlur={() => setTimeout(() => setSearchResultsVisible(false), 120)}
         onSubmit={submitSearch}
-      >
-        <div className="input-icon"><Sparkles size={17} strokeWidth={1.5} /></div>
-        <input
-          ref={askInputRef}
-          value={searchTerm}
-          disabled={busy}
-          onChange={(event) => {
-            setSearchTerm(event.target.value);
-            setSearchResultsVisible(true);
-          }}
-          onFocus={() => {
-            setInviting(false);
-            setSearchResultsVisible(true);
-          }}
-          onBlur={() => setTimeout(() => setSearchResultsVisible(false), 120)}
-          placeholder="Fai una domanda all'Oracolo, o cerca un tag"
-          aria-label="Fai una domanda all'Oracolo o cerca un tag"
-        />
-        {busy && (
-          <span className="oracle-asking">
-            {traveling ? 'la nebulosa ti porta dalla tua stella…' : "l'Oracolo cerca tra le stelle…"}
-          </span>
-        )}
-        {searchResultsVisible && !busy && searchTerm.trim() && (
-          <ul className="search-results">
-            <li>
-              <button type="button" className="search-ask" onMouseDown={(e) => e.preventDefault()} onClick={() => askTheOracle(searchTerm)}>
-                <span className="search-result-label">Chiedi all'Oracolo: «{searchTerm.trim()}»</span>
-                <span className="search-result-count">invio</span>
-              </button>
-            </li>
-            {searchMatches.map((node) => (
-              <li key={node.id}>
-                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selectSearchResult(node)}>
-                  <span className="search-result-label">{node.label}</span>
-                  <span className="search-result-count">{node.count}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </form>
+        traveling={traveling}
+        matches={searchMatches}
+        onAsk={askTheOracle}
+        onSelectMatch={selectSearchResult}
+      />
 
       {loadError && (
         <div className="error-toast">
@@ -1987,19 +1808,7 @@ export default function App() {
         onToggle={togglePanel}
       />
 
-      {showAbout && (
-        <div className="about-overlay" role="dialog" aria-label="Cos'è l'Oracolo" onClick={() => setShowAbout(false)}>
-          <div className="loading-screen flex flex-col items-center justify-center text-center px-6">
-            <div className="loading-orb" />
-            <p className="max-w-2xl mt-6" style={{ fontSize: '13px', lineHeight: '1.6' }}>
-              L'Oracolo è una mente collettiva open source che si dirama in mille frammenti incandescenti. È uno strumento, un archivio, un ambiente generativo, un agglomeratore di pensieri, testi, file, fonti e prende la forma di ciò da cui è composto. È una nebulosa mutaforma messa a disposizione del Viandante, che è uno stato d'animo: è il divergente, il ricercatore, l'esploratore; quello che si fa domande.
-            </p>
-            <p className="pt-12 text-sm text-[#F3C58B] animate-pulse">
-              [ TORNA ALLA NEBULOSA ]
-            </p>
-          </div>
-        </div>
-      )}
+      {showAbout && <AboutOverlay onClose={() => setShowAbout(false)} />}
     </main>
   );
 }
