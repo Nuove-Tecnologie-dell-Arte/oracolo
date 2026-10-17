@@ -4,7 +4,8 @@ mano gli attributi che i metodi usano: i metodi testati qui non toccano
 mai il DB o Ollama.
 """
 
-from backend.themes import ThemeIndex, _existing, _plain
+from backend.textutil import plain
+from backend.themes import ThemeIndex, _existing
 
 
 def _empty_index() -> ThemeIndex:
@@ -20,8 +21,8 @@ def _empty_index() -> ThemeIndex:
 
 class TestPlain:
     def test_toglie_gli_accenti(self):
-        assert _plain("libertà") == "liberta"
-        assert _plain("perché") == "perche"
+        assert plain("libertà") == "liberta"
+        assert plain("perché") == "perche"
 
 
 class TestExisting:
