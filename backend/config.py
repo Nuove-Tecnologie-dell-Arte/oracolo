@@ -11,6 +11,11 @@ def _int(name: str, default: int) -> int:
     return int(value) if value else default
 
 
+def _float(name: str, default: float) -> float:
+    value = os.getenv(name)
+    return float(value) if value else default
+
+
 def _ollama_url(value: str) -> str:
     """Indirizzo a cui raggiungere Ollama, ricavato da OLLAMA_HOST.
 
@@ -60,6 +65,9 @@ ORACLE_VOICE = os.getenv("ORACLE_VOICE", "sibilla").strip().lower()
 if ORACLE_VOICE not in ("sibilla", "ching"):
     raise ValueError(f"ORACLE_VOICE '{ORACLE_VOICE}' non valido: usa 'sibilla' o 'ching'")
 OLLAMA_ORACLE_MODEL = os.getenv("OLLAMA_ORACLE_MODEL") or OLLAMA_TAG_MODEL
+# Voce "ching": probabilita' (da 0 a 1) che l'Oracolo chiuda la risposta con
+# una domanda per chi lo interroga, nello stesso tono. 0 = mai, 1 = sempre.
+CHING_QUESTION_CHANCE = min(1.0, max(0.0, _float("CHING_QUESTION_CHANCE", 0.33)))
 
 # "razionale": tag che descrivono l'argomento (liberi, aperti). "oracolare":
 # ogni pensiero e' letto tra le righe e ricondotto a 1-2 delle 64 situazioni

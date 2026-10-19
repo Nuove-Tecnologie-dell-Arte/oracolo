@@ -17,6 +17,8 @@ export type OracleState = {
   text: string | null;
   // commento al verso, vuoto se l'Oracolo risponde con una sola frase
   commentary: string;
+  // domanda con cui a volte l'Oracolo chiude, rivolta al visitatore (vuota se non c'e')
+  counterQuestion: string;
   // pensieri della nebulosa a cui si e' ispirato
   entries: OracleThought[];
   // frasi dei testi che ha consultato, citate con titolo e autore
@@ -33,8 +35,8 @@ function Attribution({ source }: { source?: TextSource | null }) {
 
 // Il testo dell'Oracolo compare una parola alla volta, come se lo stesse
 // pronunciando in quel momento: il verso riga per riga e, quando l'ha detto
-// tutto, il commento.
-function OracleText({ text, commentary }: { text: string; commentary: string }) {
+// tutto, il commento e poi l'eventuale domanda al visitatore.
+function OracleText({ text, commentary, counterQuestion }: { text: string; commentary: string; counterQuestion: string }) {
   const lines = useMemo(
     () => text.split('\n').map((line) => line.split(/\s+/).filter(Boolean)).filter((line) => line.length > 0),
     [text],
@@ -65,6 +67,9 @@ function OracleText({ text, commentary }: { text: string; commentary: string }) 
       </p>
       {commentary && (
         <p className={`detail-oracle-commentary${said >= total ? ' is-said' : ''}`}>{commentary}</p>
+      )}
+      {counterQuestion && (
+        <p className={`detail-oracle-counter${said >= total ? ' is-said' : ''}`}>{counterQuestion}</p>
       )}
     </>
   );
@@ -207,7 +212,7 @@ export default function TagDetailPanel({
           <section className="detail-oracle" aria-label="L'Oracolo">
             <p className="detail-oracle-heading"><Sparkles size={12} /> L'Oracolo</p>
             {voice.text && !arriving ? (
-              <OracleText key={voice.text} text={voice.text} commentary={voice.commentary} />
+              <OracleText key={voice.text} text={voice.text} commentary={voice.commentary} counterQuestion={voice.counterQuestion} />
             ) : (
               <p className="detail-oracle-waiting">la stella sta per parlare…</p>
             )}

@@ -192,7 +192,8 @@ def _generate(prompt: str, temperature: float) -> str:
 
 # --- Voce "ching" (ORACLE_VOICE=ching) ---
 # Il tono lo da' il modello (vedi config.ORACLE_VOICE): qui si descrive solo
-# cosa chiedergli e si separa la risposta in verso e commento.
+# cosa chiedergli e si separa la risposta in verso, commento ed eventuale
+# domanda finale.
 CHING_MATERIAL = """
 Immagini da cui puoi trarre ispirazione, senza citarle (pensieri di altri \
 viaggiatori): prendine al massimo un oggetto, un gesto o un luogo.
@@ -203,28 +204,54 @@ CHING_VOICE = (
     "Chi ti visita si ferma davanti al tema \u00ab{tag}\u00bb e attende una parola. "
     "Non nominare il tema.\n" + CHING_MATERIAL
 )
+# Ogni tanto (config.CHING_QUESTION_CHANCE) l'Oracolo chiude con una domanda
+# per chi lo interroga: non un'altra risposta, ma un'immagine del verso
+# rivolta a lui. Se il modello non la scrive, la risposta resta senza.
+CHING_QUESTION = (
+    "\nDopo il commento lascia una riga vuota e chiudi con UNA sola domanda breve "
+    "per chi ti interroga, dandogli del tu, costruita su un'immagine del tuo verso."
+)
+CHING_QUESTION_WORDS = 16
 CHING_ATTEMPTS = 2
 CHING_MAX_VERSE_LINES = 8
 CHING_MAX_TOKENS = 500
 
+# L'ultima frase di un testo, se e' una domanda.
+_CLOSING_QUESTION = re.compile(r"([^.!?\u2026]+\?)[\s\"'\u00bb\u201d]*$")
 
-def _split_ching(text: str) -> tuple[str, str]:
-    """(verso, commento) dalla risposta del modello: il verso e' il primo
-    blocco di righe, il commento il paragrafo che segue una riga vuota. Toglie
-    grassetti, titoli ed elenchi che il modello non dovrebbe usare. Il
-    commento e' "" se manca."""
+
+def _closing_question(commentary: str) -> tuple[str, str]:
+    """(commento, domanda): se il commento finisce con una domanda breve
+    rivolta a chi chiede, la stacca. Altrimenti la domanda e' "" e il
+    commento resta com'e' (una domanda retorica lunga ne fa parte)."""
+    match = _CLOSING_QUESTION.search(commentary)
+    if not match:
+        return commentary, ""
+    question = match.group(1).strip(" \"'\u00ab\u00bb\u201c\u201d")
+    if len(question.split()) > CHING_QUESTION_WORDS or _FIRST_PERSON.search(question):
+        return commentary, ""
+    return commentary[: match.start()].strip(), question
+
+
+def _split_ching(text: str) -> tuple[str, str, str]:
+    """(verso, commento, domanda) dalla risposta del modello: il verso e' il
+    primo blocco di righe, il commento cio' che segue una riga vuota, la
+    domanda l'eventuale frase interrogativa con cui il commento si chiude.
+    Toglie grassetti, titoli ed elenchi che il modello non dovrebbe usare. Il
+    commento e la domanda sono "" se mancano."""
     text = re.sub(r"[*_#`]+", "", text).strip()
     blocks = [b for b in re.split(r"\n\s*\n", text) if b.strip()]
     if not blocks:
-        return "", ""
+        return "", "", ""
     verse_lines = [line.strip().lstrip("-\u2022 ").strip() for line in blocks[0].splitlines() if line.strip()]
-    commentary = " ".join(" ".join(b.split()) for b in blocks[1:])
-    return "\n".join(verse_lines), commentary
+    commentary, question = _closing_question(" ".join(" ".join(b.split()) for b in blocks[1:]))
+    return "\n".join(verse_lines), commentary, question
 
 
-def _ching_reply(user_message: str) -> tuple[str, str]:
-    """(verso, commento) dall'Oracolo "ching". Riprova se manca uno dei due o
-    se il verso e' troppo lungo per essere un verso; ("", "") se non riesce."""
+def _ching_reply(user_message: str) -> tuple[str, str, str]:
+    """(verso, commento, domanda) dall'Oracolo "ching". Riprova se manca il
+    verso o il commento, o se il verso e' troppo lungo per essere un verso;
+    ("", "", "") se non riesce. La domanda puo' mancare."""
     for _ in range(CHING_ATTEMPTS):
         response = requests.post(
             f"{config.OLLAMA_HOST}/api/generate",
@@ -238,25 +265,32 @@ def _ching_reply(user_message: str) -> tuple[str, str]:
             timeout=config.OLLAMA_TIMEOUT_SECONDS,
         )
         response.raise_for_status()
-        verse, commentary = _split_ching(response.json()["response"])
+        verse, commentary, question = _split_ching(response.json()["response"])
         if verse and commentary and verse.count("\n") < CHING_MAX_VERSE_LINES:
-            return verse, commentary
-        log.debug("Risposta 'ching' non utilizzabile: %r / %r", verse, commentary)
-    return "", ""
+            return verse, commentary, question
+        log.debug("Risposta 'ching' non utilizzabile: %r / %r / %r", verse, commentary, question)
+    return "", "", ""
 
 
 def _oracle_words(question: str | None, tag: str | None, thoughts: str, readings: str, sibyl_prompt: str, sibyl_temperature: float) -> dict:
-    """Le parole dell'Oracolo: {"answer": ..., "commentary": ...}. Nella voce
-    "sibilla" e' una frase e il commento e' vuoto; nella voce "ching" "answer"
-    e' il verso (andando a capo tra le righe) e "commentary" il commento."""
+    """Le parole dell'Oracolo: {"answer": ..., "commentary": ...,
+    "counter_question": ...}. Nella voce "sibilla" e' una frase, e commento e
+    domanda sono vuoti; nella voce "ching" "answer" e' il verso (andando a
+    capo tra le righe), "commentary" il commento e "counter_question" la
+    domanda con cui a volte l'Oracolo si rivolge a chi lo interroga."""
     if config.ORACLE_VOICE == "ching":
         if question:
             message = CHING_ASK.format(question=question, thoughts=thoughts, readings=readings)
         else:
             message = CHING_VOICE.format(tag=tag, thoughts=thoughts, readings=readings)
-        verse, commentary = _ching_reply(message)
-        return {"answer": verse or SILENCE, "commentary": commentary}
-    return {"answer": _generate(sibyl_prompt, sibyl_temperature) or SILENCE, "commentary": ""}
+        asks_back = random.random() < config.CHING_QUESTION_CHANCE
+        if asks_back:
+            message += CHING_QUESTION
+        verse, commentary, counter = _ching_reply(message)
+        if asks_back and not counter:
+            log.debug("Domanda finale chiesta all'Oracolo 'ching' ma non arrivata")
+        return {"answer": verse or SILENCE, "commentary": commentary, "counter_question": counter}
+    return {"answer": _generate(sibyl_prompt, sibyl_temperature) or SILENCE, "commentary": "", "counter_question": ""}
 
 
 def _clean(text: str) -> str:
@@ -365,7 +399,7 @@ def answer(question: str | None, tag: str | None = None) -> dict:
     if tag:
         entries = [e for e in entries if tag in e["tags"]] or entries
     if not entries:
-        return {"answer": SILENCE, "commentary": "", "entries": [], "readings": []}
+        return {"answer": SILENCE, "commentary": "", "counter_question": "", "entries": [], "readings": []}
 
     if question:
         vector = embeddings.embed_texts([question])[0]

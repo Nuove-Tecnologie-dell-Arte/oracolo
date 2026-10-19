@@ -103,6 +103,8 @@ export type OracleReply = {
   answer: string;
   // il commento al verso (vuoto se l'Oracolo risponde con una sola frase)
   commentary?: string;
+  // domanda con cui a volte l'Oracolo si rivolge a chi lo interroga (vuota se non c'e')
+  counter_question?: string;
   entries: OracleThought[];
   readings?: OracleReading[];
 };
@@ -110,6 +112,7 @@ export type OracleReply = {
 export type OracleAnswer = {
   answer: string;
   commentary?: string;
+  counter_question?: string;
   entries?: OracleThought[];
   readings?: OracleReading[];
 };
