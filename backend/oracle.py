@@ -207,9 +207,13 @@ CHING_VOICE = (
 # Ogni tanto (config.CHING_QUESTION_CHANCE) l'Oracolo chiude con una domanda
 # per chi lo interroga: non un'altra risposta, ma un'immagine del verso
 # rivolta a lui. Se il modello non la scrive, la risposta resta senza.
+# Il Modelfile di "ching" vieta il "tu": qui lo si concede solo alla domanda,
+# altrimenti filtra anche nel commento.
 CHING_QUESTION = (
-    "\nDopo il commento lascia una riga vuota e chiudi con UNA sola domanda breve "
-    "per chi ti interroga, dandogli del tu, costruita su un'immagine del tuo verso."
+    "\nIl verso e il commento restano nella tua voce di sempre, impersonale. "
+    "Solo alla fine, dopo il commento, lascia una riga vuota e aggiungi UNA sola "
+    "domanda breve (al massimo 12 parole), costruita su un'immagine del tuo verso: "
+    "e' l'unico punto della risposta in cui ti rivolgi a chi ti interroga con il tu."
 )
 CHING_QUESTION_WORDS = 16
 CHING_ATTEMPTS = 2
