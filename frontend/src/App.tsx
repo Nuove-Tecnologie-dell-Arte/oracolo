@@ -105,6 +105,12 @@ const FOCUS_VERTICAL_ROOM = 0.72;
 // sinistra del pannello.
 const PANEL_SPACE = 436;
 const PANEL_MIN_VIEWPORT = 760;
+// Sotto PANEL_MIN_VIEWPORT la scheda sta in basso: alta MOBILE_DOCK_SHARE
+// dello schermo e staccata dal fondo di MOBILE_DOCK_BOTTOM px (vedi
+// .reply-dock in index.css); sopra resta MOBILE_HEADER_SPACE px di intestazione.
+const MOBILE_DOCK_SHARE = 0.4;
+const MOBILE_DOCK_BOTTOM = 124;
+const MOBILE_HEADER_SPACE = 96;
 
 // Durata del volo delle stelle (e della camera) quando si richiama una figura.
 const MORPH_MS = 2200;
@@ -764,16 +770,27 @@ export default function App() {
     const beside = window.innerWidth >= PANEL_MIN_VIEWPORT;
     const share = beside ? Math.min(0.45, PANEL_SPACE / window.innerWidth) : 0;
     const tanHalf = Math.tan((cam.fov * Math.PI) / 360);
-    // Mezza apertura utile: in verticale tra intestazione e barra, in
-    // orizzontale lo spazio libero accanto al pannello.
-    const room = Math.min(tanHalf * FOCUS_VERTICAL_ROOM, tanHalf * cam.aspect * (1 - share));
+    // Su schermo stretto la scheda sta in basso (vedi .reply-dock in
+    // index.css): la stella va al centro della fascia libera tra
+    // l'intestazione e la scheda, non al centro dello schermo dove finirebbe
+    // coperta. `lift` e' di quanto salire, in frazioni di mezza altezza.
+    const screenH = window.innerHeight;
+    const freeTop = MOBILE_HEADER_SPACE;
+    const freeBottom = screenH - MOBILE_DOCK_BOTTOM - MOBILE_DOCK_SHARE * screenH;
+    const freeShare = beside ? FOCUS_VERTICAL_ROOM : Math.max(0.2, (freeBottom - freeTop) / screenH);
+    const lift = beside ? 0 : Math.max(0, (screenH / 2 - (freeTop + freeBottom) / 2) / (screenH / 2));
+    // Mezza apertura utile: in verticale tra intestazione e barra (o scheda),
+    // in orizzontale lo spazio libero accanto al pannello.
+    const room = Math.min(tanHalf * freeShare, tanHalf * cam.aspect * (1 - share));
     const reach = neighborhoodReach(node, kept ?? planQuestionStars(node.id));
     const distance = Math.max(FOCUS_MIN_DISTANCE, (reach * FOCUS_MARGIN) / room);
     const shift = share * distance * tanHalf * cam.aspect;
+    // guardando un po' sotto la stella, la stella sale sullo schermo
+    const drop = lift * distance * tanHalf;
 
     return {
-      position: { x: node.x + dx * distance, y: node.y + dy * distance, z: node.z + dz * distance },
-      lookAt: { x: node.x + rx * shift, y: node.y, z: node.z + rz * shift },
+      position: { x: node.x + dx * distance, y: node.y + dy * distance - drop, z: node.z + dz * distance },
+      lookAt: { x: node.x + rx * shift, y: node.y - drop, z: node.z + rz * shift },
     };
   }, [neighborhoodReach, planQuestionStars]);
 
@@ -874,6 +891,26 @@ export default function App() {
   // Testo oracolare della stella `tag`: la risposta alla domanda del
   // visitatore vista da quella stella oppure, senza domanda, una sentenza
   // sul suo tema.
+  // Misura del riquadro della nebulosa: il grafo la riceve esplicitamente,
+  // cosi' il canvas segue la finestra quando la si ridimensiona o si ruota il
+  // telefono (da solo prenderebbe solo la misura iniziale).
+  const sceneRef = useRef<HTMLDivElement>(null);
+  const [sceneSize, setSceneSize] = useState<{ width: number; height: number } | null>(null);
+  useEffect(() => {
+    const el = sceneRef.current;
+    if (!el) return;
+    const measure = () => {
+      const width = Math.round(el.clientWidth);
+      const height = Math.round(el.clientHeight);
+      if (!width || !height) return;
+      setSceneSize((current) => (current?.width === width && current.height === height ? current : { width, height }));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [loading]);
+
   const markOracle = useCallback((awake: boolean) => {
     oracleAwakeRef.current = awake;
     setOracleAwake(awake);
@@ -1547,6 +1584,7 @@ export default function App() {
       <div className="star-field" />
       <div
         className="graph-layer"
+        ref={sceneRef}
         onPointerDown={() => {
           // La barra perde il fuoco: i tasti tornano a comandare le figure.
           if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
@@ -1554,6 +1592,8 @@ export default function App() {
       >
         <ForceGraph3D
           ref={graphRef as never}
+          width={sceneSize?.width}
+          height={sceneSize?.height}
           graphData={graph}
           controlType="orbit"
           backgroundColor="rgba(0,0,0,0)"
