@@ -8,6 +8,7 @@ import {
   fetchNoiseEntries,
   fetchOracleAnswer,
   fetchTagDetail,
+  isOracleAwake,
   type Category,
   type NoiseEntry,
   type TagDetail,
@@ -260,6 +261,38 @@ const NOISE_SPREAD = 20;
 const noiseAnchor = (nodes: GraphNode[], entry: NoiseEntry) =>
   nodes[Math.floor(hash01(`rumore:${entry.id}`) * nodes.length) % nodes.length];
 
+// Parole di un testo senza maiuscole ne' accenti, per confrontare a mano una
+// domanda con i nomi delle stelle quando l'Oracolo dorme.
+const plainWords = (text: string) =>
+  text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+
+// Radice grossolana di una parola (amore/amori, paure/paura): basta per
+// avvicinare una domanda a un tag senza l'Oracolo.
+const wordRoot = (word: string) => word.slice(0, Math.max(4, word.length - 2));
+
+// Senza Oracolo la nebulosa porta comunque il visitatore da una stella: la
+// piu' grande tra quelle che compaiono nelle sue parole (`near`) oppure, se
+// nessuna gli somiglia, una delle piu' luminose, scelta dalla domanda stessa.
+function nearestStar(nodes: GraphNode[], question: string): { node: GraphNode; near: boolean } | null {
+  const stars = nodes.filter((n) => n.kind !== 'message');
+  if (!stars.length) return null;
+  const roots = plainWords(question).filter((w) => w.length >= 4).map(wordRoot);
+  const plainQuestion = plainWords(question).join(' ');
+  const matches = stars.filter((star) => {
+    const label = plainWords(star.label);
+    if (label.length && plainQuestion.includes(label.join(' '))) return true;
+    return label.some((w) => w.length >= 4 && roots.some((root) => wordRoot(w) === root));
+  });
+  if (matches.length) return { node: matches.reduce((a, b) => (b.count > a.count ? b : a)), near: true };
+  const brightest = [...stars].sort((a, b) => b.count - a.count).slice(0, 24);
+  return { node: brightest[Math.floor(hash01(`silenzio:${question}`) * brightest.length) % brightest.length], near: false };
+}
+
 export default function App() {
   const [category] = useState<Category>(categoryFromUrl);
   const [graphData, setGraphData] = useState<TagGraph>(emptyGraph);
@@ -275,6 +308,10 @@ export default function App() {
   const [oracle, setOracle] = useState<OracleState | null>(null);
   // Vero mentre l'Oracolo cerca la stella per una domanda del visitatore.
   const [asking, setAsking] = useState(false);
+  // L'Oracolo e' sveglio (Ollama raggiungibile)? null finche' non si sa. Da
+  // addormentato le stelle non lo aspettano: tacciono subito.
+  const [oracleAwake, setOracleAwake] = useState<boolean | null>(null);
+  const oracleAwakeRef = useRef<boolean | null>(null);
   // Vero mentre la camera viaggia verso la stella trovata.
   const [traveling, setTraveling] = useState(false);
   // Domanda del visitatore che guida il viaggio: ogni stella che apre gli
@@ -833,22 +870,44 @@ export default function App() {
   // Testo oracolare della stella `tag`: la risposta alla domanda del
   // visitatore vista da quella stella oppure, senza domanda, una sentenza
   // sul suo tema.
+  const markOracle = useCallback((awake: boolean) => {
+    oracleAwakeRef.current = awake;
+    setOracleAwake(awake);
+  }, []);
+
+  // Si chiede al server se l'Oracolo e' sveglio all'apertura e, finche' dorme,
+  // ogni minuto: quando il PC con Ollama torna in rete le stelle riparlano.
+  useEffect(() => {
+    if (oracleAwake === true) return;
+    let gone = false;
+    const check = () => isOracleAwake().then((awake) => { if (!gone) markOracle(awake); });
+    if (oracleAwake === null) check();
+    const timer = window.setInterval(check, 60_000);
+    return () => { gone = true; window.clearInterval(timer); };
+  }, [oracleAwake, markOracle]);
+
   const loadOracleText = useCallback(async (tag: string, question: string | null) => {
     const key = `${question ?? ''}|${tag}`;
     const known = oracleTexts.current.get(key);
-    setOracle({ tag, question, text: known?.text ?? null, entries: known?.entries ?? [], readings: known?.readings ?? [], silent: false });
-    if (known) return;
+    // Da addormentato l'Oracolo non si interroga: la stella tace subito.
+    const asleep = !known && oracleAwakeRef.current === false;
+    setOracle({ tag, question, text: known?.text ?? null, entries: known?.entries ?? [], readings: known?.readings ?? [], silent: asleep });
+    if (known || asleep) return;
     const stillHere = (current: OracleState | null) => current?.tag === tag && current.question === question;
     try {
       const reply = await fetchOracleAnswer(question, tag);
       const voice = { text: reply.answer, entries: reply.entries ?? [], readings: reply.readings ?? [] };
       oracleTexts.current.set(key, voice);
       setOracle((current) => (stillHere(current) ? { ...current!, ...voice } : current));
-    } catch {
-      // Senza Oracolo (Ollama spento, export statico) il riquadro non compare.
+    } catch (err) {
+      // Senza Oracolo (Ollama spento, export statico) la stella tace e offre
+      // un pensiero che ha ascoltato (vedi TagDetailPanel). Il motivo tecnico
+      // resta in console: al visitatore non servono indirizzi ne' errori.
+      console.warn("[oracolo] la stella tace:", err);
+      markOracle(false);
       setOracle((current) => (stillHere(current) ? { ...current!, silent: true } : current));
     }
-  }, []);
+  }, [markOracle]);
 
   // Ogni stella che si apre ha il suo testo oracolare.
   useEffect(() => {
@@ -1236,6 +1295,26 @@ export default function App() {
     askInputRef.current?.blur();
     // Mentre l'Oracolo cerca, la nebulosa comincia gia' ad attirare verso di
     // se' (se e' aperta una stella, la camera resta su di lei fino al viaggio).
+    // Il viaggio senza Oracolo: la nebulosa porta comunque il visitatore da
+    // una stella vicina alle sue parole, che tace e gli lascia un pensiero.
+    const travelInSilence = () => {
+      const found = nearestStar(nodes, question);
+      if (!found) return;
+      const { node, near } = found;
+      setVisitorQuestion(question);
+      setSearchTerm('');
+      closeDetail(false);
+      setHistory((asked) => [...asked, { question, tag: node.id }]);
+      travelTo(node, {}, () => {
+        setOracle({ tag: node.id, question, text: null, entries: [], readings: [], silent: true, near });
+        selectTag(node.id, false);
+      });
+    };
+    if (oracleAwakeRef.current === false) {
+      setAsking(false);
+      travelInSilence();
+      return;
+    }
     if (!selectedId) startDrift();
     try {
       const reply = await askOracle(question);
@@ -1256,14 +1335,23 @@ export default function App() {
       });
     } catch (err) {
       stopDrift();
-      // Senza Oracolo resta la ricerca per nome: si apre il primo tag trovato.
-      const first = searchMatches[0];
-      if (first) selectTag(first.id);
-      else setLoadError(err instanceof Error ? err.message : "L'oracolo non risponde");
+      console.warn("[oracolo] nessuna risposta, viaggio in silenzio:", err);
+      markOracle(false);
+      travelInSilence();
     } finally {
       setAsking(false);
     }
-  }, [asking, traveling, revealing, endFigure, nodes, selectedId, closeDetail, travelTo, selectTag, searchMatches, startDrift, stopDrift]);
+  }, [asking, traveling, revealing, endFigure, nodes, selectedId, closeDetail, travelTo, selectTag, startDrift, stopDrift, markOracle]);
+
+  // Il visitatore chiede di riprovare: se l'Oracolo si e' svegliato, la
+  // stella aperta risponde (alla domanda, se c'era); altrimenti resta muta.
+  const retryOracle = useCallback(async () => {
+    const awake = await isOracleAwake();
+    markOracle(awake);
+    if (!awake || !selectedId) return awake;
+    loadOracleText(selectedId, visitorQuestion);
+    return true;
+  }, [markOracle, selectedId, visitorQuestion, loadOracleText]);
 
   // Porta il visitatore sulla stella `tag`, che risponde a `question`. La
   // scheda resta aperta e passa subito alla nuova stella (la risposta si
@@ -1630,6 +1718,7 @@ export default function App() {
         onWander={wander}
         figureReady={!!figure && figure.steps >= FIGURE_STEPS && !revealing}
         onRevealFigure={revealFigure}
+        onRetryOracle={retryOracle}
       />
 
       {showAbout && <AboutOverlay onClose={() => setShowAbout(false)} />}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUpRight, X } from 'lucide-react';
-import type { OracleReading, OracleThought, TagDetail, TextSource } from '@/lib/api';
+import type { OracleReading, OracleThought, TagDetail, TagEntry, TextSource } from '@/lib/api';
 
 // Una domanda della cronologia, con la stella che le ha risposto.
 export type AskedQuestion = { question: string; tag: string };
@@ -18,9 +18,87 @@ export type OracleState = {
   entries: OracleThought[];
   // frasi dei testi che ha consultato, citate con titolo e autore
   readings: OracleReading[];
-  // l'Oracolo non e' raggiungibile: il riquadro non si mostra
+  // l'Oracolo non e' raggiungibile: la stella tace e offre un pensiero che
+  // ha ascoltato, citato alla lettera (vedi StarSilence)
   silent: boolean;
+  // solo per un viaggio in silenzio: la stella e' stata scelta perche'
+  // compare nelle parole della domanda (vero) o perche' e' tra le piu'
+  // luminose (falso)
+  near?: boolean;
 };
+
+// Il pensiero che una stella muta lascia al visitatore: preferibilmente uno
+// che condivide qualche parola con la domanda, di una lunghezza che si legga
+// d'un fiato; scelto sempre uguale per la stessa domanda e la stessa stella.
+function silentThought(entries: TagEntry[], question: string | null, tag: string): TagEntry | null {
+  if (!entries.length) return null;
+  const readable = entries.filter((e) => e.text.length >= 30 && e.text.length <= 260);
+  const pool = readable.length ? readable : entries;
+  const words = new Set(
+    (question ?? '').toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 4)
+  );
+  const shared = (e: TagEntry) => e.text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => words.has(w)).length;
+  const best = Math.max(0, ...pool.map(shared));
+  const candidates = best > 0 ? pool.filter((e) => shared(e) === best) : pool;
+  let seed = 0;
+  for (const ch of `${question ?? ''}|${tag}`) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+  return candidates[seed % candidates.length];
+}
+
+// La stella senza l'Oracolo: non parla, ma lascia un pensiero che ha
+// ascoltato, e si puo' provare a svegliarla.
+function StarSilence({
+  thought,
+  question,
+  near,
+  onRetry,
+}: {
+  thought: TagEntry | null;
+  question: string | null;
+  near?: boolean;
+  onRetry?: () => Promise<boolean>;
+}) {
+  const [state, setState] = useState<'idle' | 'trying' | 'asleep'>('idle');
+  useEffect(() => {
+    if (state !== 'asleep') return;
+    const timer = window.setTimeout(() => setState('idle'), 4000);
+    return () => window.clearTimeout(timer);
+  }, [state]);
+
+  const retry = async () => {
+    if (!onRetry || state === 'trying') return;
+    setState('trying');
+    const awake = await onRetry().catch(() => false);
+    // da sveglio la scheda passa da sola alla risposta: qui resta solo il caso muto
+    if (!awake) setState('asleep');
+  };
+
+  const lead = question
+    ? near
+      ? "L'Oracolo dorme. La nebulosa ti ha portato alla stella più vicina alle tue parole: tace, ma ti lascia un pensiero che ha ascoltato."
+      : "L'Oracolo dorme, e nessuna stella somiglia alle tue parole: la nebulosa ti ha portato da una delle più luminose. Tace, ma ti lascia un pensiero che ha ascoltato."
+    : 'La stella tace, ma ti lascia un pensiero che ha ascoltato.';
+
+  return (
+    <>
+      <p className="reply-silence">{lead}</p>
+      {thought && (
+        <blockquote className="reply-thought">
+          <OracleText key={thought.id} text={thought.text} />
+          <Attribution source={thought.source} />
+        </blockquote>
+      )}
+      {onRetry && (
+        <p className="reply-wake" aria-live="polite">
+          <button onClick={retry} disabled={state === 'trying'}>
+            {state === 'trying' ? 'la sto ascoltando…' : question ? 'riprova a chiederglielo' : 'riprova ad ascoltarla'}
+          </button>
+          {state === 'asleep' && <span>dorme ancora: riprova più tardi</span>}
+        </p>
+      )}
+    </>
+  );
+}
 
 // Da dove viene una citazione: autore e titolo del testo.
 function Attribution({ source }: { source?: TextSource | null }) {
@@ -112,6 +190,9 @@ type Props = {
   // La figura del viaggio e' completa: si puo' guardarla subito.
   figureReady?: boolean;
   onRevealFigure?: () => void;
+  // Prova a svegliare l'Oracolo per la stella aperta; risolve a vero se ora
+  // risponde.
+  onRetryOracle?: () => Promise<boolean>;
 };
 
 // Scheda del tag, ancorata a destra: a differenza del vecchio modale non ha
@@ -130,12 +211,14 @@ export default function TagDetailPanel({
   onWander,
   figureReady = false,
   onRevealFigure,
+  onRetryOracle,
 }: Props) {
   if (!tag) return null;
 
   // L'Oracolo parla solo della stella mostrata (la scheda puo' essere ancora
   // quella precedente mentre la nuova si carica).
-  const voice = oracle && oracle.tag === tag.name && !oracle.silent ? oracle : null;
+  const voice = oracle && oracle.tag === tag.name ? oracle : null;
+  const silent = !!voice?.silent;
   // La domanda a cui la stella risponde la rappresenta: diventa il titolo, e
   // il tag resta come piccola etichetta.
   const asked = oracle && oracle.tag === tag.name ? oracle.question : null;
@@ -169,7 +252,16 @@ export default function TagDetailPanel({
 
         {voice && (
           <section className="reply-voice" aria-label="L'Oracolo">
-            {voice.text && !arriving ? (
+            {arriving ? (
+              <p className="reply-waiting">{silent ? 'la nebulosa ti porta tra le stelle…' : 'la stella sta per parlare…'}</p>
+            ) : silent ? (
+              <StarSilence
+                thought={silentThought(tag.entries, voice.question, tag.name)}
+                question={voice.question}
+                near={voice.near}
+                onRetry={onRetryOracle}
+              />
+            ) : voice.text ? (
               <OracleText key={voice.text} text={voice.text} />
             ) : (
               <p className="reply-waiting">la stella sta per parlare…</p>

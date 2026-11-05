@@ -289,6 +289,21 @@ button.reply-step:hover { color: #fff; }
 .reply-answer span { opacity: 0; transition: opacity .7s ease; }
 .reply-answer span.is-said { opacity: 1; }
 .reply-waiting { margin: 28px 0 0; font: italic 500 18px/1.4 var(--font-voice); color: #a39b93; animation: oracleBreath 1.8s ease-in-out infinite; }
+/* La stella senza Oracolo: una riga che spiega il silenzio, poi il pensiero
+   ascoltato, alla lettera, nella voce ma in un colore piu' umano dell'ambra
+   delle risposte (non e' l'Oracolo che parla). */
+.reply-silence { margin: 26px 0 0; max-width: 34ch; font: italic 500 16px/1.5 var(--font-voice); color: #a39b93; text-wrap: pretty; }
+.reply-thought { margin: 16px 0 0; }
+.reply-thought .reply-answer { margin: 0; font-size: 22px; line-height: 1.4; color: #efe2cc; }
+.reply-thought .reply-source { margin-top: 10px; }
+.reply-wake { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin: 18px 0 0; }
+.reply-wake button { padding: 6px 0; font: 500 12px/1 'Manrope', sans-serif; letter-spacing: .02em; color: #b9b1a8; background: none; border: 0; border-bottom: 1px dashed rgba(185,177,168,.45); cursor: pointer; transition: color .2s, border-color .2s; }
+.reply-wake button:hover:not(:disabled) { color: #f0d9b0; border-bottom-color: #e1b47f; }
+.reply-wake button:disabled { cursor: progress; animation: oracleBreath 1.8s ease-in-out infinite; }
+.reply-wake button:focus-visible { outline: 1px solid #d7a66e; outline-offset: 3px; }
+.reply-wake span { font: italic 500 14px/1.4 var(--font-voice); color: #8f8983; }
+@media (max-width: 760px) { .reply-thought .reply-answer { font-size: 19px; } }
+@media (prefers-reduced-motion: reduce) { .reply-wake button:disabled { animation: none; } }
 .reply-actions { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-top: 22px; }
 .reply-actions button { padding: 6px 0; font: 600 12px/1 'Manrope', sans-serif; letter-spacing: .02em; color: #f0d9b0; background: none; border: 0; border-bottom: 1px solid rgba(217,174,125,.45); cursor: pointer; transition: color .2s, border-color .2s; }
 .reply-actions button:hover:not(:disabled) { color: #fff; border-bottom-color: #e1b47f; }

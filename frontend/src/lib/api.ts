@@ -122,12 +122,49 @@ async function oracleError(res: Response): Promise<Error> {
   );
 }
 
+// Quanto aspettare l'Oracolo prima di considerarlo addormentato. E' largo
+// apposta: quando Ollama e' acceso una risposta vera puo' richiedere decine
+// di secondi; quando e' spento lo dice gia' /api/health (vedi isOracleAwake)
+// e le domande non lo aspettano affatto.
+const ORACLE_TIMEOUT_MS = 45_000;
+
+// POST all'Oracolo che si arrende dopo ORACLE_TIMEOUT_MS invece di lasciare
+// il visitatore in attesa senza fine.
+async function oraclePost(path: string, body: unknown): Promise<Response> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), ORACLE_TIMEOUT_MS);
+  try {
+    return await fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (controller.signal.aborted) throw new Error(`l'Oracolo non ha risposto entro ${ORACLE_TIMEOUT_MS / 1000} secondi`);
+    throw err;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+// Vero se l'Oracolo puo' rispondere: Ollama raggiungibile e con i modelli
+// che servono. Falso anche quando il server non lo sa dire (export statico,
+// server fermo): in quel caso le domande ricevono subito il silenzio.
+export async function isOracleAwake(): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}api/health`);
+    if (!res.ok) return false;
+    const health = await res.json();
+    if (health?.ollama?.raggiungibile !== true) return false;
+    return !(health.ollama.modelli_mancanti?.length > 0);
+  } catch {
+    return false;
+  }
+}
+
 export async function askOracle(question: string): Promise<OracleReply> {
-  const res = await fetch(`${API_BASE}api/ask`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question }),
-  });
+  const res = await oraclePost('api/ask', { question });
   if (!res.ok) throw await oracleError(res);
   return res.json();
 }
@@ -142,11 +179,7 @@ export async function fetchFigure(journey: {
   figure?: string;
   speak?: boolean;
 }): Promise<FigureReply> {
-  const res = await fetch(`${API_BASE}api/oracle/figure`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(journey),
-  });
+  const res = await oraclePost('api/oracle/figure', journey);
   if (!res.ok) throw await oracleError(res);
   return res.json();
 }
@@ -154,11 +187,7 @@ export async function fetchFigure(journey: {
 // Testo oracolare della stella `tag`: la risposta a `question` vista da quella
 // stella oppure, senza domanda, una sentenza sul suo tema.
 export async function fetchOracleAnswer(question: string | null, tag: string): Promise<OracleAnswer> {
-  const res = await fetch(`${API_BASE}api/answer`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question, tag }),
-  });
+  const res = await oraclePost('api/answer', { question, tag });
   if (!res.ok) throw await oracleError(res);
   return res.json();
 }
