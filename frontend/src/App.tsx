@@ -15,6 +15,7 @@ import {
   type TagGraph,
 } from '@/lib/api';
 import TagDetailPanel, { type AskedQuestion, type OracleState } from '@/components/TagDetailPanel';
+import { silentThought } from '@/lib/silence';
 import TopBar from '@/components/TopBar';
 import InfoPanel from '@/components/InfoPanel';
 import SearchBar from '@/components/SearchBar';
@@ -841,6 +842,9 @@ export default function App() {
   }, [constellation.view, flyToOverview]);
 
   const selectSearchResult = (match: { id: string }) => {
+    // la barra lascia il fuoco: la scheda della stella lo prende (vedi TagDetailPanel)
+    setSearchResultsVisible(false);
+    askInputRef.current?.blur();
     selectTag(match.id);
   };
 
@@ -1452,6 +1456,21 @@ export default function App() {
     );
   }, [nodes, selectedId, closeDetail]);
 
+  // Cosa sta succedendo, detto a chi usa uno screen reader: la nebulosa e la
+  // risposta che compare parola per parola non si vedono, si ascoltano qui.
+  const announcement = useMemo(() => {
+    if (asking) return "L'Oracolo cerca tra le stelle…";
+    if (traveling) return 'La nebulosa ti porta tra le stelle…';
+    if (!detailTag || detailTag.name !== selectedId) return '';
+    const star = `Stella ${detailTag.name}, ${detailTag.count} frammenti.`;
+    if (!oracle || oracle.tag !== detailTag.name) return star;
+    if (oracle.silent) {
+      const thought = silentThought(detailTag.entries, oracle.question, detailTag.name);
+      return `${star} La stella tace${thought ? `, ma ti lascia un pensiero che ha ascoltato: ${thought.text}` : '.'}`;
+    }
+    return oracle.text ? `${star} La stella risponde: ${oracle.text}` : `${star} La stella sta per parlare…`;
+  }, [asking, traveling, detailTag, selectedId, oracle]);
+
   const submitSearch = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     askTheOracle(searchTerm);
@@ -1693,10 +1712,12 @@ export default function App() {
         onSelectMatch={selectSearchResult}
       />
 
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</p>
+
       {loadError && (
-        <div className="error-toast">
+        <div className="error-toast" role="alert">
           <span>{loadError}</span>
-          <button onClick={() => setLoadError(null)}><X size={14} /></button>
+          <button onClick={() => setLoadError(null)} aria-label="Chiudi l'avviso"><X size={14} aria-hidden="true" /></button>
         </div>
       )}
 

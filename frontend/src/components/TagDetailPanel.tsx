@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUpRight, X } from 'lucide-react';
 import type { OracleReading, OracleThought, TagDetail, TagEntry, TextSource } from '@/lib/api';
+import { silentThought } from '@/lib/silence';
 
 // Una domanda della cronologia, con la stella che le ha risposto.
 export type AskedQuestion = { question: string; tag: string };
@@ -26,24 +27,6 @@ export type OracleState = {
   // luminose (falso)
   near?: boolean;
 };
-
-// Il pensiero che una stella muta lascia al visitatore: preferibilmente uno
-// che condivide qualche parola con la domanda, di una lunghezza che si legga
-// d'un fiato; scelto sempre uguale per la stessa domanda e la stessa stella.
-function silentThought(entries: TagEntry[], question: string | null, tag: string): TagEntry | null {
-  if (!entries.length) return null;
-  const readable = entries.filter((e) => e.text.length >= 30 && e.text.length <= 260);
-  const pool = readable.length ? readable : entries;
-  const words = new Set(
-    (question ?? '').toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 4)
-  );
-  const shared = (e: TagEntry) => e.text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => words.has(w)).length;
-  const best = Math.max(0, ...pool.map(shared));
-  const candidates = best > 0 ? pool.filter((e) => shared(e) === best) : pool;
-  let seed = 0;
-  for (const ch of `${question ?? ''}|${tag}`) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
-  return candidates[seed % candidates.length];
-}
 
 // La stella senza l'Oracolo: non parla, ma lascia un pensiero che ha
 // ascoltato, e si puo' provare a svegliarla.
@@ -213,6 +196,18 @@ export default function TagDetailPanel({
   onRevealFigure,
   onRetryOracle,
 }: Props) {
+  // Quando arriva una nuova stella il fuoco entra nella scheda, sul titolo:
+  // chi usa la tastiera continua da li' (Tab porta alle azioni e alle stelle
+  // vicine) invece di restare sulla barra o perdersi nella pagina. Non si
+  // ruba il fuoco a chi sta scrivendo nella barra.
+  const title = useRef<HTMLHeadingElement>(null);
+  const tagName = tag?.name;
+  useEffect(() => {
+    if (!tagName || arriving) return;
+    if (document.activeElement instanceof HTMLInputElement) return;
+    title.current?.focus({ preventScroll: true });
+  }, [tagName, arriving]);
+
   if (!tag) return null;
 
   // L'Oracolo parla solo della stella mostrata (la scheda puo' essere ancora
@@ -236,14 +231,14 @@ export default function TagDetailPanel({
   });
 
   return (
-    <aside className="reply-dock" aria-label={`Tag ${tag.name}`}>
-      <button className="reply-close" onClick={onClose} aria-label="Chiudi"><X size={18} /></button>
+    <aside className="reply-dock" aria-label={`Stella ${tag.name}`}>
+      <button className="reply-close" onClick={onClose} aria-label="Chiudi la stella"><X size={18} aria-hidden="true" /></button>
       <div className="reply-scroll" key={tag.name}>
         {history.length > 1 && (
           <QuestionHistory history={history} current={current} onStep={onHistoryStep} hover={hover} />
         )}
 
-        <h2 className={`reply-title${asked ? ' is-question' : ''}`}>{asked ?? tag.name}</h2>
+        <h2 ref={title} tabIndex={-1} className={`reply-title${asked ? ' is-question' : ''}`}>{asked ?? tag.name}</h2>
         <p className="reply-meta">
           {asked && <strong>{tag.name}</strong>}
           <span>{tag.count} frammenti</span>
