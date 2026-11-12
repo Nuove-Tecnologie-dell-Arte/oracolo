@@ -8,7 +8,8 @@ dettagli tecnici vedi [README.md](README.md) (ha anche una sezione
 ## Struttura
 
 ```
-backend/     backend Python (pipeline dati, logica dell'Oracolo, webserver stdlib)
+backend/     backend Python (pipeline dati, logica dell'Oracolo, webserver stdlib;
+             backend/diario.py porta i pensieri del Diario di bordo)
 frontend/    frontend React/Vite ("La Nebulosa"), buildato in frontend/dist
 hosting/     endpoint PHP da caricare sul server che espone il DB MySQL
 testi/       libri/tesi/interviste letti dall'Oracolo (non versionati, tranne fonti.json)
@@ -49,8 +50,9 @@ cd frontend && npm run lint && npm run typecheck
 - **ID delle entry in `backend/db_local.py`** seguono uno schema per evitare
   collisioni tra provenienze diverse: positivi = righe MySQL, negativi
   (decrescenti da -1) = upload manuali da `inserisci.html`, `FRAGMENT_ID_BASE
-  (1_000_000_000) + id passo` = citazioni tratte da un testo. Non riusare
-  questi intervalli per altro.
+  (1_000_000_000) + id passo` = citazioni tratte da un testo,
+  `DIARIO_ID_BASE (2_000_000_000) + id del diario` = pensieri del Diario di
+  bordo (`backend/diario.py`). Non riusare questi intervalli per altro.
 - **Le citazioni dai testi non vengono mai riscritte dal modello**: solo
   selezionate (vedi `backend/library.py`, `quotable_sentences`/`thought_score`).
   Se si modifica questa pipeline, mantenere l'invariante: il testo mostrato
