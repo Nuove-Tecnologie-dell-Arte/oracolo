@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS entries (
     likes INTEGER,
     -- 'stampante' (pensieri dal totem), 'tesi'/'interviste' (caricate a mano
     -- o lette da un testo con quel kind), 'libro' (testi letti senza kind
-    -- tesi/intervista): usata per filtrare la nebulosa per categoria.
+    -- tesi/intervista), 'diario' (Diario di bordo, vedi backend/diario.py):
+    -- usata per filtrare la nebulosa per categoria.
     category TEXT NOT NULL DEFAULT 'stampante',
     synced_at TEXT DEFAULT CURRENT_TIMESTAMP,
     tagged_at TEXT                   -- NULL finche' Ollama non l'ha ancora processata
@@ -66,6 +67,10 @@ CREATE TABLE IF NOT EXISTS passages (
 # quelli delle righe MySQL: id = FRAGMENT_ID_BASE + id del passo d'origine.
 FRAGMENT_ID_BASE = 1_000_000_000
 
+# I pensieri del Diario di bordo (backend/diario.py) hanno una fascia propria:
+# id = DIARIO_ID_BASE + id del pensiero sul diario.
+DIARIO_ID_BASE = 2_000_000_000
+
 
 @contextmanager
 def get_connection():
@@ -100,6 +105,10 @@ def init_db() -> None:
             # fondo), assegnato da Ollama in fase di tag (vedi backend/tagging.py).
             # NULL finche' l'entry non e' stata (ri)taggata con questo campo.
             conn.execute("ALTER TABLE entries ADD COLUMN noise_score REAL")
+        if "gruppo" not in columns:
+            # Gruppo di chi ha scritto un pensiero del diario ("4° anno",
+            # "Docenti"); NULL per tutte le altre provenienze.
+            conn.execute("ALTER TABLE entries ADD COLUMN gruppo TEXT")
 
 
 def upsert_entries(rows: list[dict]) -> int:
@@ -135,6 +144,48 @@ def upsert_entries(rows: list[dict]) -> int:
                     "UPDATE entries SET tagged_at = NULL WHERE id = ?", (row["id"],)
                 )
     return len(rows)
+
+
+def upsert_diario_entries(rows: list[dict]) -> int:
+    """Inserisce o aggiorna i pensieri del Diario di bordo (chiavi id, text,
+    created_at, gruppo; id gia' nella fascia DIARIO_ID_BASE).
+
+    Come upsert_entries: se il testo cambia, azzera tagged_at cosi' il
+    pensiero verra' ritaggato al prossimo giro.
+    """
+    if not rows:
+        return 0
+    with get_connection() as conn:
+        for row in rows:
+            existing = conn.execute(
+                "SELECT text FROM entries WHERE id = ?", (row["id"],)
+            ).fetchone()
+            conn.execute(
+                """
+                INSERT INTO entries (id, text, created_at, likes, category, gruppo)
+                VALUES (:id, :text, :created_at, 0, 'diario', :gruppo)
+                ON CONFLICT(id) DO UPDATE SET
+                    text = excluded.text,
+                    created_at = excluded.created_at,
+                    category = 'diario',
+                    gruppo = excluded.gruppo,
+                    synced_at = CURRENT_TIMESTAMP
+                """,
+                row,
+            )
+            if existing is not None and existing["text"] != row["text"]:
+                conn.execute("UPDATE entries SET tagged_at = NULL WHERE id = ?", (row["id"],))
+    return len(rows)
+
+
+def delete_diario_entries_except(ids: set[int]) -> int:
+    """Toglie i pensieri del diario che sul diario non ci sono piu' (con i loro
+    tag e vettori, via ON DELETE CASCADE). Ritorna quanti ne ha tolti."""
+    with get_connection() as conn:
+        present = [row["id"] for row in conn.execute("SELECT id FROM entries WHERE category = 'diario'")]
+        gone = [entry_id for entry_id in present if entry_id not in ids]
+        conn.executemany("DELETE FROM entries WHERE id = ?", [(entry_id,) for entry_id in gone])
+    return len(gone)
 
 
 def insert_local_entries(category: str, texts: list[str]) -> list[int]:
@@ -232,10 +283,11 @@ def get_entries_by_noise_score(category: str | None, min_score: float) -> list[d
 def get_entries_with_tags(category: str | None = None) -> list[dict]:
     """Tutte le entry con i loro tag. Per le citazioni tratte da un testo,
     `source` ne riporta titolo e autore; per i pensieri delle persone e' None.
-    Con `category` filtra per 'stampante' | 'tesi' | 'interviste' | 'libro'."""
+    Per i pensieri del diario `group` e' il gruppo di chi scrive, altrimenti None.
+    Con `category` filtra per 'stampante' | 'tesi' | 'interviste' | 'libro' | 'diario'."""
     with get_connection() as conn:
         query = (
-            "SELECT e.id, e.text, e.likes, s.title AS source_title, s.author AS source_author "
+            "SELECT e.id, e.text, e.likes, e.gruppo, s.title AS source_title, s.author AS source_author "
             "FROM entries e LEFT JOIN sources s ON s.id = e.source_id"
         )
         params: tuple = ()
@@ -256,6 +308,7 @@ def get_entries_with_tags(category: str | None = None) -> list[dict]:
                 "text": entry["text"],
                 "likes": entry["likes"],
                 "tags": tags_by_entry[entry["id"]],
+                "group": entry["gruppo"],
                 "source": (
                     {"title": entry["source_title"], "author": entry["source_author"]}
                     if entry["source_title"]
