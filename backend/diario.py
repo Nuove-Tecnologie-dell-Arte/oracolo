@@ -39,12 +39,19 @@ def fetch_pensieri(session=requests) -> tuple[list[dict], dict[str, str]]:
     elenco a meta' non deve mai arrivare alla pulizia."""
     nomi = {c["chiave"]: c["nome"] for c in _get(session, "/api/categorie")["categorie"]}
     pensieri: list[dict] = []
-    pagina, pagine = 1, 1
+    pagina, pagine, totale = 1, 1, None
     while pagina <= pagine:
         dati = _get(session, "/api/pensieri", {"pagina": pagina, "per_pagina": PER_PAGINA})
         pensieri.extend(dati["pensieri"])
         pagine = dati["pagine"]
+        if totale is None:
+            totale = dati["totale"]
         pagina += 1
+    # Un elenco che non torna con il totale dichiarato (pensiero cancellato
+    # mentre si leggevano le pagine, risposta vuota per errore) e' a meta':
+    # meglio rinunciare e riprovare al prossimo sync che cancellare per sbaglio.
+    if len(pensieri) != totale:
+        raise ValueError(f"il diario dichiara {totale} pensieri ma ne sono arrivati {len(pensieri)}")
     return pensieri, nomi
 
 

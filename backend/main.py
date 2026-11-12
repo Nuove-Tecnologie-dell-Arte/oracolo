@@ -74,17 +74,29 @@ def do_pipeline(args: argparse.Namespace) -> None:
     do_embed()
 
 
+def safe_pipeline(args: argparse.Namespace) -> bool:
+    """Un giro di `run`: un errore (diario o stampante irraggiungibili, Ollama
+    spento...) finisce nel log e il ciclo riprova al giro successivo invece
+    di fermarsi per sempre. Ritorna False se il giro e' fallito."""
+    try:
+        do_pipeline(args)
+    except Exception:
+        log.exception("[run] giro fallito: riprovo tra %d minuti", config.SYNC_INTERVAL_MINUTES)
+        return False
+    return True
+
+
 def run_loop(args: argparse.Namespace) -> None:
     print(
         f"[run] avvio con intervallo di {config.SYNC_INTERVAL_MINUTES} minuti "
         "(Ctrl+C per fermare)"
     )
-    do_pipeline(args)
+    safe_pipeline(args)
     # --retag si applica solo al primo giro: ai successivi (automatici, ogni
     # SYNC_INTERVAL_MINUTES) non va ripetuto, altrimenti si rifarebbe tutto
     # il tagging per sempre invece che solo le entry nuove.
     recurring_args = argparse.Namespace(**{**vars(args), "retag": False})
-    schedule.every(config.SYNC_INTERVAL_MINUTES).minutes.do(do_pipeline, recurring_args)
+    schedule.every(config.SYNC_INTERVAL_MINUTES).minutes.do(safe_pipeline, recurring_args)
     while True:
         schedule.run_pending()
         time.sleep(1)

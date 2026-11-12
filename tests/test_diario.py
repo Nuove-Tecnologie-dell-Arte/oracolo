@@ -27,10 +27,12 @@ class _Risposta:
 class _Sessione:
     """Risponde per percorso e pagina; registra le chiamate fatte."""
 
-    def __init__(self, categorie, pagine, errore_a_pagina=None):
+    def __init__(self, categorie, pagine, errore_a_pagina=None, totale=None):
         self.categorie = categorie
         self.pagine = pagine
         self.errore_a_pagina = errore_a_pagina
+        # quanti pensieri il diario dichiara (di norma: quelli che manda)
+        self.totale = sum(map(len, pagine)) if totale is None else totale
         self.chiamate = []
 
     def get(self, url, params=None, timeout=None):
@@ -41,7 +43,7 @@ class _Sessione:
         n = params["pagina"]
         if n == self.errore_a_pagina:
             return _Risposta(errore=True)
-        return _Risposta({"totale": sum(map(len, self.pagine)), "pagina": n,
+        return _Risposta({"totale": self.totale, "pagina": n,
                           "pagine": len(self.pagine), "pensieri": self.pagine[n - 1]})
 
 
@@ -90,6 +92,23 @@ def test_fetch_errore_a_meta_solleva(monkeypatch):
     monkeypatch.setattr(config, "DIARIO_API_URL", BASE)
     sessione = _Sessione(CATEGORIE, [[_p(2)], [_p(1)]], errore_a_pagina=2)
     with pytest.raises(requests.HTTPError):
+        fetch_pensieri(sessione)
+
+
+def test_fetch_elenco_incompleto_solleva(monkeypatch):
+    # Il diario dichiara 3 pensieri ma ne arrivano 2 (un pensiero cancellato
+    # mentre si leggevano le pagine, o una risposta vuota per errore): senza
+    # l'elenco intero la pulizia toglierebbe pensieri ancora validi.
+    monkeypatch.setattr(config, "DIARIO_API_URL", BASE)
+    sessione = _Sessione(CATEGORIE, [[_p(3)], [_p(1)]], totale=3)
+    with pytest.raises(ValueError):
+        fetch_pensieri(sessione)
+
+
+def test_fetch_risposta_vuota_ma_con_pensieri_dichiarati_solleva(monkeypatch):
+    monkeypatch.setattr(config, "DIARIO_API_URL", BASE)
+    sessione = _Sessione(CATEGORIE, [[]], totale=36)
+    with pytest.raises(ValueError):
         fetch_pensieri(sessione)
 
 
