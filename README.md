@@ -10,10 +10,12 @@ sibilla.
 
 ## Cos'è, in parole semplici
 
-- **I pensieri** arrivano da tre posti diversi: da un totem/stampante che
-  raccoglie frasi anonime scritte dalle persone, da note caricate a mano
-  (tesi, interviste), e da libri/tesi/interviste che l'Oracolo "legge" dalla
-  cartella `testi/`.
+- **I pensieri** arrivano da quattro posti diversi: da un totem/stampante
+  che raccoglie frasi anonime scritte dalle persone, dal [Diario di
+  bordo](https://diario.nuovetecnologiedellarte.it/) del laboratorio (dove
+  ognuno scrive anonimo indicando solo il proprio gruppo: anno di corso,
+  docenti...), da note caricate a mano (tesi, interviste), e da
+  libri/tesi/interviste che l'Oracolo "legge" dalla cartella `testi/`.
 - **Le stelle** sono i temi di questi pensieri (amore, paura, casa, mare...).
   Più persone parlano di un tema, più grande è la sua stella. Due stelle sono
   collegate da un filo se capita spesso che lo stesso pensiero tocchi
@@ -22,9 +24,11 @@ sibilla.
   computer in rete, non su internet) per capire di cosa parla la tua domanda,
   scegliere la stella più adatta e scrivere una risposta ispirata ai
   pensieri raccolti lì.
-- **Le categorie** (TUTTI / TESI / INTERVISTE / STAMPANTE) nell'header
-  permettono di guardare solo una parte della nebulosa: per esempio solo i
-  pensieri del totem, o solo le citazioni prese da tesi di laurea.
+- **Le categorie** (TUTTI / TESI / INTERVISTE / STAMPANTE / DIARIO)
+  nell'header permettono di guardare solo una parte della nebulosa: per
+  esempio solo i pensieri del totem, solo quelli del diario (con il gruppo
+  di chi scrive sotto ogni pensiero), o solo le citazioni prese da tesi di
+  laurea.
 
 ### Come si usa
 
@@ -74,7 +78,7 @@ quindi non serve ricompilare nulla quando cambiano solo i contenuti.
 ### Comandi disponibili
 
 ```bash
-python -m backend.main sync      # scarica/aggiorna i pensieri dalla sorgente remota (MySQL)
+python -m backend.main sync      # scarica/aggiorna i pensieri da stampante (MySQL) e Diario di bordo
 python -m backend.main tag       # assegna i temi ai pensieri nuovi/modificati, via Ollama
 python -m backend.main tag --retag  # come sopra, ma riprocessa anche i pensieri gia' taggati
 python -m backend.main embed     # prepara i pensieri per l'Oracolo (calcola i vettori di similarità)

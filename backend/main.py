@@ -13,7 +13,7 @@ log = get_logger(__name__)
 
 def do_sync() -> None:
     n = sync.run_sync()
-    print(f"[sync] {n} entry sincronizzate dalla sorgente remota")
+    print(f"[sync] {n} entry sincronizzate (stampante + diario)")
 
 
 def do_tag(args: argparse.Namespace) -> None:
