@@ -167,8 +167,9 @@ def _thoughts(entries: list[dict]) -> str:
 
 def _view(entry: dict) -> dict:
     """Una entry come la riceve il sito: per le citazioni dai testi, `source`
-    ne riporta titolo e autore."""
-    return {"id": entry["id"], "text": entry["text"], "source": entry.get("source")}
+    ne riporta titolo e autore; per i pensieri del diario, `group` il gruppo
+    di chi li ha scritti."""
+    return {"id": entry["id"], "text": entry["text"], "source": entry.get("source"), "group": entry.get("group")}
 
 
 def _nearest(vector, entries: list[dict], count: int) -> list[tuple[float, dict]]:
