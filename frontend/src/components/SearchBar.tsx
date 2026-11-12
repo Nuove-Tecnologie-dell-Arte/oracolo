@@ -93,7 +93,7 @@ export default function SearchBar({
         onBlur={onBlur}
         onKeyDown={onKeyDown}
         placeholder="Fai una domanda all'Oracolo, o cerca un tag"
-        aria-label="Fai una domanda all'Oracolo o cerca una stella"
+        aria-label="Fai una domanda all'Oracolo o cerca un tag"
         aria-describedby="search-hint"
         role="combobox"
         aria-autocomplete="list"
@@ -103,7 +103,7 @@ export default function SearchBar({
         autoComplete="off"
       />
       <span id="search-hint" className="sr-only">
-        Scrivi una domanda e premi Invio, oppure il nome di una stella e scegli con le frecce.
+        Scrivi una domanda e premi Invio, oppure il nome di un tag e scegli la sua stella con le frecce.
       </span>
       <button type="submit" className="ask-button" disabled={busy || !term} aria-label="Chiedi all'Oracolo">
         <ArrowUp size={18} strokeWidth={2} aria-hidden="true" />

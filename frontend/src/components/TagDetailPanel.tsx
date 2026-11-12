@@ -222,6 +222,9 @@ export default function TagDetailPanel({
   // quella precedente mentre la nuova si carica).
   const voice = oracle && oracle.tag === tag.name ? oracle : null;
   const silent = !!voice?.silent;
+  // Il pensiero che la stella muta offre: non si ripete poi tra i frammenti.
+  const offered = voice && silent && !arriving ? silentThought(tag.entries, voice.question, tag.name) : null;
+  const fragments = offered ? tag.entries.filter((e) => e.id !== offered.id) : tag.entries;
   // La domanda a cui la stella risponde la rappresenta: diventa il titolo, e
   // il tag resta come piccola etichetta.
   const asked = oracle && oracle.tag === tag.name ? oracle.question : null;
@@ -259,7 +262,7 @@ export default function TagDetailPanel({
               <p className="reply-waiting">{silent ? 'la nebulosa ti porta tra le stelle…' : 'la stella sta per parlare…'}</p>
             ) : silent ? (
               <StarSilence
-                thought={silentThought(tag.entries, voice.question, tag.name)}
+                thought={offered}
                 question={voice.question}
                 near={voice.near}
                 onRetry={onRetryOracle}
@@ -295,10 +298,10 @@ export default function TagDetailPanel({
           </section>
         )}
 
-        {tag.entries.length > 0 && (
+        {fragments.length > 0 && (
           <div className="reply-section">
             <h3 className="reply-label">Frammenti</h3>
-            {tag.entries.map((entry) => (
+            {fragments.map((entry) => (
               <p className={`reply-fragment${entry.source ? ' is-quote' : ''}`} key={entry.id}>
                 {entry.text}
                 <Attribution source={entry.source} />
