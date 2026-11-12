@@ -69,6 +69,7 @@ function StarSilence({
         <blockquote className="reply-thought">
           <OracleText key={thought.id} text={thought.text} />
           <Attribution source={thought.source} />
+          <Signature group={thought.group} />
         </blockquote>
       )}
       {onRetry && (
@@ -87,6 +88,13 @@ function StarSilence({
 function Attribution({ source }: { source?: TextSource | null }) {
   if (!source) return null;
   return <cite className="reply-source">{source.author}, <em>{source.title}</em></cite>;
+}
+
+// Chi ha scritto un pensiero del Diario di bordo: solo il suo gruppo ("4° anno",
+// "Docenti"), nella stessa firma delle citazioni.
+function Signature({ group }: { group?: string | null }) {
+  if (!group) return null;
+  return <cite className="reply-source">{group}</cite>;
 }
 
 // Il testo dell'Oracolo compare una parola alla volta, come se lo stesse
@@ -272,7 +280,7 @@ export default function TagDetailPanel({
               <div className="reply-section">
                 <h3 className="reply-label">Pensieri che ha ascoltato</h3>
                 {voice.entries.map((entry) => (
-                  <p className="reply-heard" key={entry.id}>{entry.text}<Attribution source={entry.source} /></p>
+                  <p className="reply-heard" key={entry.id}>{entry.text}<Attribution source={entry.source} /><Signature group={entry.group} /></p>
                 ))}
               </div>
             )}
@@ -294,6 +302,7 @@ export default function TagDetailPanel({
               <p className={`reply-fragment${entry.source ? ' is-quote' : ''}`} key={entry.id}>
                 {entry.text}
                 <Attribution source={entry.source} />
+                <Signature group={entry.group} />
               </p>
             ))}
           </div>
@@ -313,6 +322,7 @@ export default function TagDetailPanel({
                       <span className="reply-bond-name">{rel.name}<ArrowUpRight size={14} /></span>
                       {shared && <span className="reply-bond-quote">{shared.text}</span>}
                       {shared?.source && <Attribution source={shared.source} />}
+                      <Signature group={shared?.group} />
                       {shared && others > 0 && (
                         <span className="reply-bond-more">
                           {others === 1 ? 'e un\'altra frase in comune' : `e altre ${others} frasi in comune`}

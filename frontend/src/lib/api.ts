@@ -28,6 +28,8 @@ export type TagEntry = {
   likes: number;
   // presente solo per le citazioni tratte da un testo letto dall'Oracolo
   source?: TextSource | null;
+  // gruppo di chi l'ha scritto, solo per i pensieri del Diario di bordo
+  group?: string | null;
 };
 
 export type RelatedTag = {
@@ -35,7 +37,7 @@ export type RelatedTag = {
   weight: number;
   // Frasi che contengono entrambi i tag (al massimo 3): il motivo del
   // collegamento. Assente se il server non le fornisce.
-  entries?: { id: number; text: string; source?: TextSource | null }[];
+  entries?: { id: number; text: string; source?: TextSource | null; group?: string | null }[];
 };
 
 export type TagDetail = {
@@ -51,7 +53,7 @@ export type TagDetail = {
 const API_BASE = import.meta.env.BASE_URL;
 
 // Lente con cui guardare la nebulosa: 'tutti' oppure una provenienza sola.
-export type Category = 'tutti' | 'tesi' | 'interviste' | 'stampante';
+export type Category = 'tutti' | 'tesi' | 'interviste' | 'stampante' | 'diario';
 
 export async function fetchGraph(category: Category = 'tutti'): Promise<TagGraph> {
   const res = await fetch(`${API_BASE}api/graph?category=${category}`);
@@ -82,6 +84,7 @@ export type OracleThought = {
   id: number;
   text: string;
   source?: TextSource | null;
+  group?: string | null;
 };
 
 // Frase di un testo che l'Oracolo ha consultato per rispondere, citata alla
