@@ -25,6 +25,30 @@ def generative(payload: dict) -> dict:
     return {**payload, "think": config.OLLAMA_THINK}
 
 
+def generate(
+    prompt: str,
+    temperature: float | None = None,
+    json_format: bool = False,
+    model: str | None = None,
+) -> str:
+    """Testo generato da Ollama per `prompt` con `model` (se manca,
+    OLLAMA_TAG_MODEL; con `json_format` obbliga il modello a rispondere in
+    JSON). Un solo tentativo: serve a chi risponde a una richiesta in corso,
+    che non puo' aspettare i tentativi di `post`."""
+    payload: dict = {"model": model or config.OLLAMA_TAG_MODEL, "prompt": prompt, "stream": False}
+    if json_format:
+        payload["format"] = "json"
+    if temperature is not None:
+        payload["options"] = {"temperature": temperature}
+    response = requests.post(
+        f"{config.OLLAMA_HOST}/api/generate",
+        json=generative(payload),
+        timeout=config.OLLAMA_TIMEOUT_SECONDS,
+    )
+    response.raise_for_status()
+    return response.json()["response"]
+
+
 def post(endpoint: str, payload: dict, host: str | None = None) -> dict:
     """POST a Ollama (es. "/api/embed"), a `host` o, se manca, a OLLAMA_HOST;
     ritorna la risposta JSON. Riprova

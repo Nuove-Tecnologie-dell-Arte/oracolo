@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUpRight, ChevronLeft, ChevronRight, Hash, Sparkles, X } from 'lucide-react';
-import type { OracleReading, OracleThought, TagDetail, TextSource } from '@/lib/api';
+import { ArrowUpRight, X } from 'lucide-react';
+import type { OracleReading, OracleThought, TagDetail, TagEntry, TextSource } from '@/lib/api';
+import { silentThought } from '@/lib/silence';
 
 // Una domanda della cronologia, con la stella che le ha risposto.
 export type AskedQuestion = { question: string; tag: string };
@@ -21,20 +22,88 @@ export type OracleState = {
   entries: OracleThought[];
   // frasi dei testi che ha consultato, citate con titolo e autore
   readings: OracleReading[];
-  // l'Oracolo non e' raggiungibile: il riquadro non si mostra
+  // l'Oracolo non e' raggiungibile: la stella tace e offre un pensiero che
+  // ha ascoltato, citato alla lettera (vedi StarSilence)
   silent: boolean;
+  // solo per un viaggio in silenzio: la stella e' stata scelta perche'
+  // compare nelle parole della domanda (vero) o perche' e' tra le piu'
+  // luminose (falso)
+  near?: boolean;
 };
+
+// La stella senza l'Oracolo: non parla, ma lascia un pensiero che ha
+// ascoltato, e si puo' provare a svegliarla.
+function StarSilence({
+  thought,
+  question,
+  near,
+  onRetry,
+}: {
+  thought: TagEntry | null;
+  question: string | null;
+  near?: boolean;
+  onRetry?: () => Promise<boolean>;
+}) {
+  const [state, setState] = useState<'idle' | 'trying' | 'asleep'>('idle');
+  useEffect(() => {
+    if (state !== 'asleep') return;
+    const timer = window.setTimeout(() => setState('idle'), 4000);
+    return () => window.clearTimeout(timer);
+  }, [state]);
+
+  const retry = async () => {
+    if (!onRetry || state === 'trying') return;
+    setState('trying');
+    const awake = await onRetry().catch(() => false);
+    // da sveglio la scheda passa da sola alla risposta: qui resta solo il caso muto
+    if (!awake) setState('asleep');
+  };
+
+  const lead = question
+    ? near
+      ? "L'Oracolo dorme. La nebulosa ti ha portato alla stella più vicina alle tue parole: tace, ma ti lascia un pensiero che ha ascoltato."
+      : "L'Oracolo dorme, e nessuna stella somiglia alle tue parole: la nebulosa ti ha portato da una delle più luminose. Tace, ma ti lascia un pensiero che ha ascoltato."
+    : 'La stella tace, ma ti lascia un pensiero che ha ascoltato.';
+
+  return (
+    <>
+      <p className="reply-silence">{lead}</p>
+      {thought && (
+        <blockquote className="reply-thought">
+          <OracleText key={thought.id} text={thought.text} />
+          <Attribution source={thought.source} />
+          <Signature group={thought.group} />
+        </blockquote>
+      )}
+      {onRetry && (
+        <p className="reply-wake" aria-live="polite">
+          <button onClick={retry} disabled={state === 'trying'}>
+            {state === 'trying' ? 'la sto ascoltando…' : question ? 'riprova a chiederglielo' : 'riprova ad ascoltarla'}
+          </button>
+          {state === 'asleep' && <span>dorme ancora: riprova più tardi</span>}
+        </p>
+      )}
+    </>
+  );
+}
 
 // Da dove viene una citazione: autore e titolo del testo.
 function Attribution({ source }: { source?: TextSource | null }) {
   if (!source) return null;
-  return <cite className="detail-source">{source.author}, <em>{source.title}</em></cite>;
+  return <cite className="reply-source">{source.author}, <em>{source.title}</em></cite>;
+}
+
+// Chi ha scritto un pensiero del Diario di bordo: solo il suo gruppo ("4° anno",
+// "Docenti"), nella stessa firma delle citazioni.
+function Signature({ group }: { group?: string | null }) {
+  if (!group) return null;
+  return <cite className="reply-source">{group}</cite>;
 }
 
 // Il testo dell'Oracolo compare una parola alla volta, come se lo stesse
 // pronunciando in quel momento: il verso riga per riga e, quando l'ha detto
 // tutto, il commento.
-function OracleText({ text, commentary }: { text: string; commentary: string }) {
+function OracleText({ text, commentary = '' }: { text: string; commentary?: string }) {
   const lines = useMemo(
     () => text.split('\n').map((line) => line.split(/\s+/).filter(Boolean)).filter((line) => line.length > 0),
     [text],
@@ -52,19 +121,19 @@ function OracleText({ text, commentary }: { text: string; commentary: string }) 
   let spoken = 0;
   return (
     <>
-      <p className="detail-oracle-answer" aria-label={lines.map((line) => line.join(' ')).join(' ')}>
+      <p className="reply-answer" aria-label={lines.map((line) => line.join(' ')).join(' ')}>
         {lines.map((line, row) => (
           // le righe non cambiano posizione: la chiave puo' essere l'indice
-          <span key={row} className="oracle-line" aria-hidden="true">
+          <span key={row} className="reply-line" aria-hidden="true">
             {line.map((word, i) => {
               const index = spoken++;
-              return <span key={i} className={`oracle-word${index < said ? ' is-said' : ''}`}>{word} </span>;
+              return <span key={i} className={index < said ? 'is-said' : undefined}>{word} </span>;
             })}
           </span>
         ))}
       </p>
       {commentary && (
-        <p className={`detail-oracle-commentary${said >= total ? ' is-said' : ''}`}>{commentary}</p>
+        <p className={`reply-commentary${said >= total ? ' is-said' : ''}`}>{commentary}</p>
       )}
     </>
   );
@@ -89,16 +158,15 @@ function QuestionHistory({
   }, [history.length]);
 
   return (
-    <nav className="detail-trail detail-history" aria-label="Le tue domande">
-      <p className="detail-trail-heading">Le tue domande</p>
+    <nav className="reply-trail" aria-label="Le tue domande">
       <ol ref={list}>
         {history.map((step, i) => (
           // la stessa domanda puo' tornare piu' volte: la chiave include la posizione
           <li key={`${i}-${step.question}`}>
             {i === current ? (
-              <span className="detail-history-step is-current" aria-current="step">{step.question}</span>
+              <span className="reply-step is-current" aria-current="step">{step.question}</span>
             ) : (
-              <button className="detail-history-step" onClick={() => onStep?.(i)} {...hover(step.tag)}>
+              <button className="reply-step" onClick={() => onStep?.(i)} {...hover(step.tag)}>
                 {step.question}
               </button>
             )}
@@ -132,9 +200,9 @@ type Props = {
   // La figura del viaggio e' completa: si puo' guardarla subito.
   figureReady?: boolean;
   onRevealFigure?: () => void;
-  // Scheda aperta o ritirata a destra (resta solo la linguetta per riaprirla).
-  open?: boolean;
-  onToggle?: () => void;
+  // Prova a svegliare l'Oracolo per la stella aperta; risolve a vero se ora
+  // risponde.
+  onRetryOracle?: () => Promise<boolean>;
 };
 
 // Scheda del tag, ancorata a destra: a differenza del vecchio modale non ha
@@ -153,14 +221,29 @@ export default function TagDetailPanel({
   onWander,
   figureReady = false,
   onRevealFigure,
-  open = true,
-  onToggle,
+  onRetryOracle,
 }: Props) {
+  // Quando arriva una nuova stella il fuoco entra nella scheda, sul titolo:
+  // chi usa la tastiera continua da li' (Tab porta alle azioni e alle stelle
+  // vicine) invece di restare sulla barra o perdersi nella pagina. Non si
+  // ruba il fuoco a chi sta scrivendo nella barra.
+  const title = useRef<HTMLHeadingElement>(null);
+  const tagName = tag?.name;
+  useEffect(() => {
+    if (!tagName || arriving) return;
+    if (document.activeElement instanceof HTMLInputElement) return;
+    title.current?.focus({ preventScroll: true });
+  }, [tagName, arriving]);
+
   if (!tag) return null;
 
   // L'Oracolo parla solo della stella mostrata (la scheda puo' essere ancora
   // quella precedente mentre la nuova si carica).
-  const voice = oracle && oracle.tag === tag.name && !oracle.silent ? oracle : null;
+  const voice = oracle && oracle.tag === tag.name ? oracle : null;
+  const silent = !!voice?.silent;
+  // Il pensiero che la stella muta offre: non si ripete poi tra i frammenti.
+  const offered = voice && silent && !arriving ? silentThought(tag.entries, voice.question, tag.name) : null;
+  const fragments = offered ? tag.entries.filter((e) => e.id !== offered.id) : tag.entries;
   // La domanda a cui la stella risponde la rappresenta: diventa il titolo, e
   // il tag resta come piccola etichetta.
   const asked = oracle && oracle.tag === tag.name ? oracle.question : null;
@@ -178,102 +261,100 @@ export default function TagDetailPanel({
   });
 
   return (
-    <aside className={`detail-dock${open ? '' : ' is-closed'}`} aria-label={`Tag ${tag.name}`}>
-      {/* Linguetta: apre e chiude la scheda. Il puntino dice che la stella
-          ha parlato e la risposta aspetta di essere letta. */}
-      <button
-        className={`detail-handle${!open && voice?.text && !arriving ? ' has-news' : ''}`}
-        onClick={onToggle}
-        aria-expanded={open}
-        aria-label={open ? 'Nascondi la scheda' : 'Apri la risposta della stella'}
-      >
-        {open ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
-        <span>{open ? 'nascondi' : 'la risposta'}</span>
-      </button>
-      <button className="modal-close" onClick={onClose} aria-label="Chiudi"><X size={18} /></button>
-      <div className="detail-dock-scroll" key={tag.name}>
+    <aside className="reply-dock" aria-label={`Stella ${tag.name}`}>
+      <button className="reply-close" onClick={onClose} aria-label="Chiudi la stella"><X size={18} aria-hidden="true" /></button>
+      <div className="reply-scroll" key={tag.name}>
         {history.length > 1 && (
           <QuestionHistory history={history} current={current} onStep={onHistoryStep} hover={hover} />
         )}
 
-        <div className="detail-kind"><Hash size={15} /> {asked ? tag.name : 'Tag'}</div>
-        <h2 className={`detail-title${asked ? ' is-question' : ''}`}>{asked ?? tag.name}</h2>
-        <div className="detail-meta">
-          <div><span>Frammenti</span><strong>{tag.count}</strong></div>
-          <div><span>Stelle collegate</span><strong>{linkedCount ?? tag.related.length}</strong></div>
-        </div>
+        <h2 ref={title} tabIndex={-1} className={`reply-title${asked ? ' is-question' : ''}`}>{asked ?? tag.name}</h2>
+        <p className="reply-meta">
+          {asked && <strong>{tag.name}</strong>}
+          <span>{tag.count} frammenti</span>
+          <span>{linkedCount ?? tag.related.length} stelle collegate</span>
+        </p>
 
         {voice && (
-          <section className="detail-oracle" aria-label="L'Oracolo">
-            <p className="detail-oracle-heading"><Sparkles size={12} /> L'Oracolo</p>
-            {voice.text && !arriving ? (
+          <section className="reply-voice" aria-label="L'Oracolo">
+            {arriving ? (
+              <p className="reply-waiting">{silent ? 'la nebulosa ti porta tra le stelle…' : 'la stella sta per parlare…'}</p>
+            ) : silent ? (
+              <StarSilence
+                thought={offered}
+                question={voice.question}
+                near={voice.near}
+                onRetry={onRetryOracle}
+              />
+            ) : voice.text ? (
               <OracleText key={voice.text} text={voice.text} commentary={voice.commentary} />
             ) : (
-              <p className="detail-oracle-waiting">la stella sta per parlare…</p>
+              <p className="reply-waiting">la stella sta per parlare…</p>
             )}
+            {figureReady && (
+              <button className="reply-figure" onClick={onRevealFigure}>la nebulosa ha preso forma: guardala</button>
+            )}
+            <div className="reply-actions">
+              <button onClick={onAskAnother}>fai un'altra domanda</button>
+              <button onClick={onWander}>viaggia nella nebulosa</button>
+            </div>
             {voice.text && !arriving && voice.entries.length > 0 && (
-              <div className="detail-oracle-sources">
-                <p className="detail-oracle-label">Pensieri che ha ascoltato</p>
+              <div className="reply-section">
+                <h3 className="reply-label">Pensieri che ha ascoltato</h3>
                 {voice.entries.map((entry) => (
-                  <p key={entry.id}>{entry.text}<Attribution source={entry.source} /></p>
+                  <p className="reply-heard" key={entry.id}>{entry.text}<Attribution source={entry.source} /><Signature group={entry.group} /></p>
                 ))}
               </div>
             )}
             {voice.text && !arriving && voice.readings.length > 0 && (
-              <div className="detail-oracle-sources">
-                <p className="detail-oracle-label">Dai testi che ha letto</p>
+              <div className="reply-section">
+                <h3 className="reply-label">Dai testi che ha letto</h3>
                 {voice.readings.map((reading) => (
-                  <p key={`${reading.title}-${reading.text}`}>{reading.text}<Attribution source={reading} /></p>
+                  <p className="reply-heard" key={`${reading.title}-${reading.text}`}>{reading.text}<Attribution source={reading} /></p>
                 ))}
               </div>
             )}
-            <div className="detail-oracle-actions">
-              {figureReady && (
-                <button className="detail-figure-ready" onClick={onRevealFigure}>la nebulosa ha preso forma: guardala</button>
-              )}
-              <button onClick={onAskAnother}>fai un'altra domanda</button>
-              <button onClick={onWander}>viaggia nella nebulosa</button>
-            </div>
           </section>
         )}
 
-        {tag.entries.length > 0 && (
-          <div className="detail-entries">
-            {tag.entries.map((entry) => (
-              <p className={`detail-entry${entry.source ? ' is-quote' : ''}`} key={entry.id}>
+        {fragments.length > 0 && (
+          <div className="reply-section">
+            <h3 className="reply-label">Frammenti</h3>
+            {fragments.map((entry) => (
+              <p className={`reply-fragment${entry.source ? ' is-quote' : ''}`} key={entry.id}>
                 {entry.text}
                 <Attribution source={entry.source} />
+                <Signature group={entry.group} />
               </p>
             ))}
           </div>
         )}
 
         {tag.related.length > 0 && (
-          <div className="detail-connections">
-            <p className="detail-conn-heading">Tag collegati</p>
-            <div className="detail-bond-list">
+          <div className="reply-section">
+            <h3 className="reply-label">Stelle vicine</h3>
+            <ul className="reply-bonds">
               {tag.related.map((rel) => {
                 // La frase che contiene entrambi i tag: perche' sono collegati.
                 const shared = rel.entries?.[0];
                 const others = rel.weight - 1;
                 return (
-                  <button key={rel.name} className="detail-bond" onClick={() => onSelectTag(rel.name)} {...hover(rel.name)}>
-                    <span className="detail-bond-name">
-                      <span className="detail-conn-dot" />
-                      {rel.name}
-                      <ArrowUpRight size={12} />
-                    </span>
-                    {shared && <span className="detail-bond-quote">{shared.text}</span>}
-                    {shared?.source && <Attribution source={shared.source} />}
-                    {shared && others > 0 && (
-                      <span className="detail-bond-more">
-                        {others === 1 ? 'e un\'altra frase in comune' : `e altre ${others} frasi in comune`}
-                      </span>
-                    )}
-                  </button>
+                  <li key={rel.name}>
+                    <button className="reply-bond" onClick={() => onSelectTag(rel.name)} {...hover(rel.name)}>
+                      <span className="reply-bond-name">{rel.name}<ArrowUpRight size={14} /></span>
+                      {shared && <span className="reply-bond-quote">{shared.text}</span>}
+                      {shared?.source && <Attribution source={shared.source} />}
+                      <Signature group={shared?.group} />
+                      {shared && others > 0 && (
+                        <span className="reply-bond-more">
+                          {others === 1 ? 'e un\'altra frase in comune' : `e altre ${others} frasi in comune`}
+                        </span>
+                      )}
+                    </button>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           </div>
         )}
       </div>

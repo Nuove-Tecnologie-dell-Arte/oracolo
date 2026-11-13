@@ -100,6 +100,12 @@ export function reducedMotion(): boolean {
   return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 }
 
+// Distanza di un punto davanti alla camera (negativa se e' dietro), data la
+// matrice `matrixWorldInverse.elements` della camera.
+export function depthAhead(m: number[], x: number, y: number, z: number): number {
+  return -(m[2] * x + m[6] * y + m[10] * z + m[14]);
+}
+
 // Da 0 a 1 partendo e arrivando con dolcezza (accelerazione nulla agli estremi).
 export function smoother(t: number): number {
   const x = Math.min(1, Math.max(0, t));

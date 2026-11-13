@@ -37,6 +37,9 @@ def _ollama_url(value: str) -> str:
 # protetto dalla stessa api_key definita in config.php sul server.
 REMOTE_API_URL = os.getenv("REMOTE_API_URL", "")
 REMOTE_API_KEY = os.getenv("REMOTE_API_KEY", "")
+# Diario di bordo: API pubblica da cui arrivano i pensieri della categoria
+# "diario" (vedi backend/diario.py). Vuoto = diario disattivato.
+DIARIO_API_URL = os.getenv("DIARIO_API_URL", "https://diario.nuovetecnologiedellarte.it").rstrip("/")
 
 LOCAL_DB_PATH = os.getenv("LOCAL_DB_PATH", "data/local.db")
 

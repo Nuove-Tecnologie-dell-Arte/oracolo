@@ -751,26 +751,16 @@ _RAW = [
     ("Mi manchi nei posti più stupidi, come in coda alla posta", "mancanza", "umorismo"),
 ]
 
-FIXTURE_ENTRIES = [
-    {"id": i, "text": text, "tags": list(tags)}
-    for i, (text, *tags) in enumerate(_RAW, start=1)
-]
-
 
 def seed_test_data() -> None:
     db_local.init_db()
-    rows = [
-        {
-            "id": e["id"],
-            "text": e["text"],
-            "created_at": None,
-            "status": "test",
-            "ip": None,
-            "likes": 0,
-        }
-        for e in FIXTURE_ENTRIES
-    ]
-    db_local.upsert_entries(rows)
-    for e in FIXTURE_ENTRIES:
-        db_local.set_entry_tags(e["id"], e["tags"])
-    log.info("Inserite %d entry di prova, gia' taggate", len(FIXTURE_ENTRIES))
+    entries = [(i, text, tags) for i, (text, *tags) in enumerate(_RAW, start=1)]
+    db_local.upsert_entries(
+        [
+            {"id": i, "text": text, "created_at": None, "status": "test", "ip": None, "likes": 0}
+            for i, text, _ in entries
+        ]
+    )
+    for i, _, tags in entries:
+        db_local.set_entry_tags(i, tags)
+    log.info("Inserite %d entry di prova, gia' taggate", len(entries))

@@ -225,4 +225,3 @@ export const FIGURES: Record<FigureId, Figure> = {
   },
 };
 
-export const FIGURE_IDS = Object.keys(FIGURES) as FigureId[];

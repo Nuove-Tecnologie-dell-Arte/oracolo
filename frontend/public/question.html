@@ -149,8 +149,9 @@
         oracoloReroll.disabled = false;
         oracoloAnswerBtn.disabled = false;
       } catch (err) {
-        oracoloEl.textContent =
-          "l'oracolo tace (serve avviato con 'python -m src.main serve' e Ollama raggiungibile?)";
+        // il motivo tecnico (server fermo, Ollama spento) resta in console
+        console.warn("[oracolo]", err);
+        oracoloEl.textContent = "l'oracolo dorme: torna a chiedergli più tardi";
       }
     }
 
@@ -166,12 +167,13 @@
           body: JSON.stringify({ question: oracoloEl.textContent }),
         });
         const data = await res.json();
+        if (!res.ok) console.warn("[oracolo]", data.error);
         oracoloAnswerEl.textContent = res.ok
           ? data.answer
-          : (data.error || "l'oracolo non risponde");
+          : "l'oracolo dorme e non risponde: riprova più tardi";
       } catch (err) {
-        oracoloAnswerEl.textContent =
-          "impossibile contattare l'oracolo (serve avviato con 'python -m src.main serve'?)";
+        console.warn("[oracolo]", err);
+        oracoloAnswerEl.textContent = "l'oracolo dorme e non risponde: riprova più tardi";
       } finally {
         oracoloAnswerBtn.disabled = false;
       }

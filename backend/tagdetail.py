@@ -27,9 +27,10 @@ def build_tag_detail(tag_name: str, category: str | None = None) -> dict | None:
     return {
         "name": tag_name,
         "count": len(matching),
-        # `source` (titolo e autore) accompagna le citazioni tratte dai testi
+        # `source` (titolo e autore) accompagna le citazioni tratte dai testi;
+        # `group` il gruppo di chi ha scritto un pensiero del diario
         "entries": [
-            {"id": e["id"], "text": e["text"], "likes": e["likes"], "source": e["source"]}
+            {"id": e["id"], "text": e["text"], "likes": e["likes"], "source": e["source"], "group": e.get("group")}
             for e in matching[:20]
         ],
         "related": [
@@ -37,7 +38,7 @@ def build_tag_detail(tag_name: str, category: str | None = None) -> dict | None:
                 "name": n,
                 "weight": w,
                 "entries": [
-                    {"id": e["id"], "text": e["text"], "source": e["source"]}
+                    {"id": e["id"], "text": e["text"], "source": e["source"], "group": e.get("group")}
                     for e in shared[n][:3]
                 ],
             }

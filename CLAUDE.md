@@ -8,7 +8,8 @@ dettagli tecnici vedi [README.md](README.md) (ha anche una sezione
 ## Struttura
 
 ```
-backend/     backend Python (pipeline dati, logica dell'Oracolo, webserver stdlib)
+backend/     backend Python (pipeline dati, logica dell'Oracolo, webserver stdlib;
+             backend/diario.py porta i pensieri del Diario di bordo)
 frontend/    frontend React/Vite ("La Nebulosa"), buildato in frontend/dist
 scripts/     script di shell per il lab (es. `tagga-oracolare.sh`) e unit systemd in `scripts/systemd/`
 hosting/     endpoint PHP da caricare sul server che espone il DB MySQL
@@ -33,7 +34,7 @@ Vedi README per il significato di ciascuno. Per lavorare sul frontend:
 
 ```bash
 cd frontend && npm install && npm run build   # build servita da `backend.main serve`
-cd frontend && npm run dev                     # dev server Vite (non legge le API locali a meno di proxy)
+npm run dev   # dalla radice: avvia backend (serve) + Vite; se :8000 è già attivo lo riusa
 cd frontend && npm run lint && npm run typecheck
 ```
 
@@ -50,8 +51,9 @@ cd frontend && npm run lint && npm run typecheck
 - **ID delle entry in `backend/db_local.py`** seguono uno schema per evitare
   collisioni tra provenienze diverse: positivi = righe MySQL, negativi
   (decrescenti da -1) = upload manuali da `inserisci.html`, `FRAGMENT_ID_BASE
-  (1_000_000_000) + id passo` = citazioni tratte da un testo. Non riusare
-  questi intervalli per altro.
+  (1_000_000_000) + id passo` = citazioni tratte da un testo,
+  `DIARIO_ID_BASE (2_000_000_000) + id del diario` = pensieri del Diario di
+  bordo (`backend/diario.py`). Non riusare questi intervalli per altro.
 - **Le citazioni dai testi non vengono mai riscritte dal modello**: solo
   selezionate (vedi `backend/library.py`, `quotable_sentences`/`thought_score`).
   Se si modifica questa pipeline, mantenere l'invariante: il testo mostrato
@@ -65,7 +67,16 @@ cd frontend && npm run lint && npm run typecheck
 
 ## Test e verifica
 
-Non c'è una suite di test automatizzata. Per verificare un cambiamento:
+Il backend ha test (`pytest`, vedi `tests/`) solo per le funzioni pure di
+`backend/library.py` e `backend/themes.py` - niente Ollama o DB coinvolto.
+Si installano con `pip install -r requirements-dev.txt` e si lanciano con
+`python -m pytest` dalla radice. In particolare
+`tests/test_library.py::TestQuotableSentences` verifica l'invariante
+"le citazioni non vengono mai riscritte" (vedi sopra): se la tocchi,
+assicurati che quel test passi ancora.
+
+Per il resto, e per cio' che i test non coprono (Ollama, DB, server),
+verifica un cambiamento cosi':
 - `python -m backend.main seed` per popolare il DB locale senza bisogno di
   MySQL/Ollama, poi `python -m backend.main serve` e controllare a occhio
   `http://localhost:8000/`.

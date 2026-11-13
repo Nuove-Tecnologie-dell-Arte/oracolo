@@ -10,10 +10,12 @@ sibilla.
 
 ## Cos'è, in parole semplici
 
-- **I pensieri** arrivano da tre posti diversi: da un totem/stampante che
-  raccoglie frasi anonime scritte dalle persone, da note caricate a mano
-  (tesi, interviste), e da libri/tesi/interviste che l'Oracolo "legge" dalla
-  cartella `testi/`.
+- **I pensieri** arrivano da quattro posti diversi: da un totem/stampante
+  che raccoglie frasi anonime scritte dalle persone, dal [Diario di
+  bordo](https://diario.nuovetecnologiedellarte.it/) del laboratorio (dove
+  ognuno scrive anonimo indicando solo il proprio gruppo: anno di corso,
+  docenti...), da note caricate a mano (tesi, interviste), e da
+  libri/tesi/interviste che l'Oracolo "legge" dalla cartella `testi/`.
 - **Le stelle** sono i temi di questi pensieri (amore, paura, casa, mare...).
   Più persone parlano di un tema, più grande è la sua stella. Due stelle sono
   collegate da un filo se capita spesso che lo stesso pensiero tocchi
@@ -22,9 +24,11 @@ sibilla.
   computer in rete, non su internet) per capire di cosa parla la tua domanda,
   scegliere la stella più adatta e scrivere una risposta ispirata ai
   pensieri raccolti lì.
-- **Le categorie** (TUTTI / TESI / INTERVISTE / STAMPANTE) nell'header
-  permettono di guardare solo una parte della nebulosa: per esempio solo i
-  pensieri del totem, o solo le citazioni prese da tesi di laurea.
+- **Le categorie** (TUTTI / TESI / INTERVISTE / STAMPANTE / DIARIO)
+  nell'header permettono di guardare solo una parte della nebulosa: per
+  esempio solo i pensieri del totem, solo quelli del diario (con il gruppo
+  di chi scrive sotto ogni pensiero), o solo le citazioni prese da tesi di
+  laurea.
 
 ### Come si usa
 
@@ -74,7 +78,7 @@ quindi non serve ricompilare nulla quando cambiano solo i contenuti.
 ### Comandi disponibili
 
 ```bash
-python -m backend.main sync      # scarica/aggiorna i pensieri dalla sorgente remota (MySQL)
+python -m backend.main sync      # scarica/aggiorna i pensieri da stampante (MySQL) e Diario di bordo
 python -m backend.main tag       # assegna i temi ai pensieri nuovi/modificati, via Ollama
 python -m backend.main tag --retag  # come sopra, ma riprocessa anche i pensieri gia' taggati
 python -m backend.main embed     # prepara i pensieri per l'Oracolo (calcola i vettori di similarità)
@@ -283,12 +287,11 @@ lunghi una riga. Si procede invece così:
 - **`answer(question, tag)`**: la stessa risposta ma vista da una stella
   precisa (filtra le entry su quel tag); senza domanda, una "sentenza" sul
   tema della stella (`VOICE_PROMPT`).
-- **`question_for_tag`** / **`star_question`**: generano domande (non
-  risposte) — la prima è ciò che l'Oracolo chiede al visitatore fermo su una
-  stella, la seconda è una domanda-civetta mostrata accanto a una stella, che
-  porta lì chi la sceglie. Entrambe ritentano fino a `QUESTION_ATTEMPTS`
-  volte se il modello non rispetta le regole di forma (una sola frase,
-  niente prima persona, non nomina il tema, lunghezza).
+- **`star_question`**: genera una domanda (non una risposta): una
+  domanda-civetta mostrata accanto a una stella, che porta lì chi la sceglie.
+  Ritenta fino a `QUESTION_ATTEMPTS` volte se il modello non rispetta le
+  regole di forma (una sola frase, niente prima persona, non nomina il tema,
+  lunghezza).
 - **`suggestions()`**: pool di domande generate da Ollama, cache in memoria
   per `SUGGESTIONS_TTL` (10 minuti); se Ollama non risponde, usa
   `FALLBACK_SUGGESTIONS` e riprova dopo un minuto (non ad ogni richiesta).
@@ -319,7 +322,6 @@ di chiudere la connessione.
 | GET | `/api/noise?category=<...>&min_score=<0-1>` | entry col punteggio di rumore (vedi `backend/tagging.py`) almeno `min_score` (default 0.5): alimenta i nodi-messaggio del pulsante dedicato nell'header, la cui soglia si regola con +/- |
 | GET | `/api/questions` | domande evocative generate al volo (`question.html`) |
 | GET | `/api/suggestions` | domande da proporre a chi entra |
-| GET | `/api/oracle/question?tag=<nome>&trail=<tag,precedenti>` | domanda che l'Oracolo fa a chi si ferma su una stella |
 | GET | `/api/oracle/star-question?tag=<nome>&asked=<domanda precedente>` | domanda-civetta che rappresenta una stella (diversa ogni volta) |
 | GET | `/api/health` | stato del server, di Ollama (modelli presenti/mancanti) e della biblioteca |
 | POST | `/api/ask` `{"question"}` | domanda del visitatore: stella di destinazione, path, risposta, pensieri e citazioni |

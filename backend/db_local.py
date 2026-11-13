@@ -1,4 +1,5 @@
 import sqlite3
+from collections import defaultdict
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -14,7 +15,8 @@ CREATE TABLE IF NOT EXISTS entries (
     likes INTEGER,
     -- 'stampante' (pensieri dal totem), 'tesi'/'interviste' (caricate a mano
     -- o lette da un testo con quel kind), 'libro' (testi letti senza kind
-    -- tesi/intervista): usata per filtrare la nebulosa per categoria.
+    -- tesi/intervista), 'diario' (Diario di bordo, vedi backend/diario.py):
+    -- usata per filtrare la nebulosa per categoria.
     category TEXT NOT NULL DEFAULT 'stampante',
     synced_at TEXT DEFAULT CURRENT_TIMESTAMP,
     tagged_at TEXT                   -- NULL finche' Ollama non l'ha ancora processata
@@ -65,6 +67,10 @@ CREATE TABLE IF NOT EXISTS passages (
 # quelli delle righe MySQL: id = FRAGMENT_ID_BASE + id del passo d'origine.
 FRAGMENT_ID_BASE = 1_000_000_000
 
+# I pensieri del Diario di bordo (backend/diario.py) hanno una fascia propria:
+# id = DIARIO_ID_BASE + id del pensiero sul diario.
+DIARIO_ID_BASE = 2_000_000_000
+
 
 @contextmanager
 def get_connection():
@@ -104,6 +110,10 @@ def init_db() -> None:
             # del pensiero (solo con TAG_MODE=oracolare, vedi backend/tagging.py).
             # NULL nei tag razionali.
             conn.execute("ALTER TABLE entries ADD COLUMN reading TEXT")
+        if "gruppo" not in columns:
+            # Gruppo di chi ha scritto un pensiero del diario ("4° anno",
+            # "Docenti"); NULL per tutte le altre provenienze.
+            conn.execute("ALTER TABLE entries ADD COLUMN gruppo TEXT")
 
 
 def upsert_entries(rows: list[dict]) -> int:
@@ -139,6 +149,48 @@ def upsert_entries(rows: list[dict]) -> int:
                     "UPDATE entries SET tagged_at = NULL WHERE id = ?", (row["id"],)
                 )
     return len(rows)
+
+
+def upsert_diario_entries(rows: list[dict]) -> int:
+    """Inserisce o aggiorna i pensieri del Diario di bordo (chiavi id, text,
+    created_at, gruppo; id gia' nella fascia DIARIO_ID_BASE).
+
+    Come upsert_entries: se il testo cambia, azzera tagged_at cosi' il
+    pensiero verra' ritaggato al prossimo giro.
+    """
+    if not rows:
+        return 0
+    with get_connection() as conn:
+        for row in rows:
+            existing = conn.execute(
+                "SELECT text FROM entries WHERE id = ?", (row["id"],)
+            ).fetchone()
+            conn.execute(
+                """
+                INSERT INTO entries (id, text, created_at, likes, category, gruppo)
+                VALUES (:id, :text, :created_at, 0, 'diario', :gruppo)
+                ON CONFLICT(id) DO UPDATE SET
+                    text = excluded.text,
+                    created_at = excluded.created_at,
+                    category = 'diario',
+                    gruppo = excluded.gruppo,
+                    synced_at = CURRENT_TIMESTAMP
+                """,
+                row,
+            )
+            if existing is not None and existing["text"] != row["text"]:
+                conn.execute("UPDATE entries SET tagged_at = NULL WHERE id = ?", (row["id"],))
+    return len(rows)
+
+
+def delete_diario_entries_except(ids: set[int]) -> int:
+    """Toglie i pensieri del diario che sul diario non ci sono piu' (con i loro
+    tag e vettori, via ON DELETE CASCADE). Ritorna quanti ne ha tolti."""
+    with get_connection() as conn:
+        present = [row["id"] for row in conn.execute("SELECT id FROM entries WHERE category = 'diario'")]
+        gone = [entry_id for entry_id in present if entry_id not in ids]
+        conn.executemany("DELETE FROM entries WHERE id = ?", [(entry_id,) for entry_id in gone])
+    return len(gone)
 
 
 def insert_local_entries(category: str, texts: list[str]) -> list[int]:
@@ -229,7 +281,6 @@ def get_entries_by_noise_score(category: str | None, min_score: float) -> list[d
     pulsante "rumore di fondo" del frontend, la cui soglia e' regolabile.
     Le entry non ancora (ri)taggate con questo campo (noise_score NULL)
     contano come 0, quindi non compaiono mai finche' non viene retaggata."""
-    init_db()
     with get_connection() as conn:
         query = "SELECT id, text FROM entries WHERE COALESCE(noise_score, 0) >= ?"
         params: list = [min_score]
@@ -242,41 +293,45 @@ def get_entries_by_noise_score(category: str | None, min_score: float) -> list[d
 def get_entries_with_tags(category: str | None = None) -> list[dict]:
     """Tutte le entry con i loro tag. Per le citazioni tratte da un testo,
     `source` ne riporta titolo e autore; per i pensieri delle persone e' None.
-    Con `category` filtra per 'stampante' | 'tesi' | 'interviste' | 'libro'."""
-    init_db()
+    Per i pensieri del diario `group` e' il gruppo di chi scrive, altrimenti None.
+    Con `category` filtra per 'stampante' | 'tesi' | 'interviste' | 'libro' | 'diario'."""
     with get_connection() as conn:
         query = (
-            "SELECT e.id, e.text, e.likes, s.title AS source_title, s.author AS source_author "
+            "SELECT e.id, e.text, e.likes, e.gruppo, s.title AS source_title, s.author AS source_author "
             "FROM entries e LEFT JOIN sources s ON s.id = e.source_id"
         )
-        if category is None:
-            entries = conn.execute(query).fetchall()
-        else:
-            entries = conn.execute(query + " WHERE e.category = ?", (category,)).fetchall()
-        result = []
-        for entry in entries:
-            tag_rows = conn.execute(
-                """
-                SELECT t.name FROM tags t
-                JOIN entry_tags et ON et.tag_id = t.id
-                WHERE et.entry_id = ?
-                """,
-                (entry["id"],),
-            ).fetchall()
-            result.append(
-                {
-                    "id": entry["id"],
-                    "text": entry["text"],
-                    "likes": entry["likes"],
-                    "tags": [t["name"] for t in tag_rows],
-                    "source": (
-                        {"title": entry["source_title"], "author": entry["source_author"]}
-                        if entry["source_title"]
-                        else None
-                    ),
-                }
-            )
-        return result
+        params: tuple = ()
+        if category is not None:
+            query += " WHERE e.category = ?"
+            params = (category,)
+        entries = conn.execute(query, params).fetchall()
+
+        tags_by_entry: dict[int, list[str]] = defaultdict(list)
+        for row in conn.execute(
+            "SELECT et.entry_id, t.name FROM entry_tags et JOIN tags t ON t.id = et.tag_id"
+        ):
+            tags_by_entry[row["entry_id"]].append(row["name"])
+
+        return [
+            {
+                "id": entry["id"],
+                "text": entry["text"],
+                "likes": entry["likes"],
+                "tags": tags_by_entry[entry["id"]],
+                "group": entry["gruppo"],
+                "source": (
+                    {"title": entry["source_title"], "author": entry["source_author"]}
+                    if entry["source_title"]
+                    else None
+                ),
+            }
+            for entry in entries
+        ]
+
+
+def get_tagged_entries(category: str | None = None) -> list[dict]:
+    """Come get_entries_with_tags, ma solo le entry che hanno almeno un tag."""
+    return [entry for entry in get_entries_with_tags(category) if entry["tags"]]
 
 
 def get_entry_embeddings() -> list[sqlite3.Row]:
@@ -284,6 +339,23 @@ def get_entry_embeddings() -> list[sqlite3.Row]:
         return conn.execute(
             "SELECT entry_id, model, text_hash, vector FROM entry_embeddings"
         ).fetchall()
+
+
+def get_entry_embeddings_signature() -> tuple[int, int, int]:
+    """Impronta leggera dei vettori delle entry (senza leggerli): cambia
+    quando ne arrivano di nuovi o ne viene ricalcolato uno, perche' allora
+    cambia anche l'impronta del testo (text_hash) da cui e' stato fatto."""
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT COUNT(*) AS n, COALESCE(MAX(entry_id), 0) AS last,
+                COALESCE(SUM(unicode(substr(text_hash, 1, 1)) * 65536
+                    + unicode(substr(text_hash, 2, 1)) * 256
+                    + unicode(substr(text_hash, 3, 1))), 0) AS mix
+            FROM entry_embeddings
+            """
+        ).fetchone()
+        return row["n"], row["last"], row["mix"]
 
 
 def upsert_entry_embeddings(rows: list[dict]) -> None:

@@ -8,6 +8,7 @@ export const CATEGORY_OPTIONS: { value: Category; label: string }[] = [
   { value: 'tesi', label: 'Tesi' },
   { value: 'interviste', label: 'Interviste' },
   { value: 'stampante', label: 'Stampante' },
+  { value: 'diario', label: 'Diario' },
 ];
 
 export function categoryFromUrl(): Category {
