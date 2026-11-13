@@ -43,7 +43,6 @@ button { color: inherit; }
 .topbar { top: 0; left: 0; right: 0; height: 84px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 42px; background: linear-gradient(180deg, rgba(8,10,13,.82) 0%, rgba(8,10,13,.5) 55%, rgba(8,10,13,0) 100%); }
 .brand { display: flex; align-items: baseline; gap: 16px; min-width: 0; }
 .brand-name { margin: 0; font: italic 500 28px/1 var(--font-voice); letter-spacing: -.01em; color: #eee8df; white-space: nowrap; }
-.brand-name svg { color: #d7a66e; margin-right: 9px; vertical-align: 0.12em; }
 .brand-count { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8f8983; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .status-dot { width: 5px; height: 5px; background: var(--star-cool); border-radius: 50%; box-shadow: 0 0 9px var(--star-cool); }
 .category-tabs { display: flex; align-items: center; gap: 28px; }

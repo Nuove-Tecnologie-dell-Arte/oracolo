@@ -25,10 +25,7 @@ export default function TopBar({
   return (
     <header className="topbar">
       <div className="brand">
-        <h1 className="brand-name">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0c.6 6.6 4.8 11.4 12 12-7.2.6-11.4 5.4-12 12-.6-6.6-4.8-11.4-12-12C7.2 11.4 11.4 6.6 12 0Z" /></svg>
-          La Nebulosa
-        </h1>
+        <h1 className="brand-name">Oracolo</h1>
         <p className="brand-count"><span className="status-dot" />{tagCount} tag condivisi</p>
       </div>
       <nav className="category-tabs" aria-label="Filtra la nebulosa per categoria">
